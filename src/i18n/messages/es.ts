@@ -81,6 +81,8 @@ export default {
   'checkout.payment.title': 'Métodos de Pago',
   'checkout.payment.zelle': 'Zelle',
   'checkout.payment.paypal': 'PayPal',
+  'checkout.payment.stripe': 'Tarjeta de Crédito/Débito',
+  'checkout.payment.stripe.button': 'Pagar con Tarjeta',
   'checkout.important': 'Importante',
   'checkout.complete': 'Completar Compra',
   'checkout.success': '¡Gracias por tu compra!',

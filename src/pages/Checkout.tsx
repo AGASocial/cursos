@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Mail, AlertCircle, Check } from 'lucide-react';
+import { ShoppingCart, Mail, AlertCircle, Check, CreditCard } from 'lucide-react';
 import { FormattedMessage } from 'react-intl';
 import { Button } from '../components/ui/Button';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { createOrder } from '../lib/orders';
+import { loadStripe } from '@stripe/stripe-js';
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 export const Checkout = () => {
   const navigate = useNavigate();
@@ -50,6 +53,53 @@ export const Checkout = () => {
       clearCart();
       navigate('/courses');
     }, 3000);
+  };
+
+  const handleStripeCheckout = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const stripe = await stripePromise;
+      if (!stripe) throw new Error('Stripe failed to load');
+
+      const response = await fetch('/.netlify/functions/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: cart.items.map(item => ({
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: item.title,
+                description: `Curso: ${item.title}`,
+              },
+              unit_amount: Math.round(item.price * 100),
+            },
+            quantity: 1,
+          })),
+          userId: user.uid,
+          userEmail: user.email,
+        }),
+      });
+
+      const session = await response.json();
+      
+      const result = await stripe.redirectToCheckout({
+        sessionId: session.id,
+      });
+
+      if (result.error) {
+        setError(result.error.message || 'Error al procesar el pago');
+      }
+    } catch (err) {
+      setError('Error al iniciar el proceso de pago');
+      console.error('Stripe checkout error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -163,6 +213,29 @@ export const Checkout = () => {
                       <p className="mt-4 text-base text-gray-600">
                         <FormattedMessage id="footer.email" />
                       </p>
+                    </div>
+
+                    {/* Stripe Payment */}
+                    <div className="rounded-xl border border-gray-200 p-6 hover:border-blue-200 hover:shadow-md transition-all duration-200">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                          <CreditCard className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          <FormattedMessage id="checkout.payment.stripe" />
+                        </h3>
+                      </div>
+                      <Button
+                        onClick={handleStripeCheckout}
+                        disabled={loading}
+                        className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
+                      >
+                        {loading ? (
+                          <FormattedMessage id="admin.orders.processing" />
+                        ) : (
+                          <FormattedMessage id="checkout.payment.stripe.button" />
+                        )}
+                      </Button>
                     </div>
 
                     {/* Important Notice */}
