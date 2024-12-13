@@ -1,4 +1,5 @@
 import React from 'react';
+import { FormattedMessage } from 'react-intl';
 import { Clock, Users, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
@@ -38,25 +39,25 @@ export const CourseCard: React.FC<CourseCardProps> = ({
       <div className="p-4">
         <Link to={isEnrolled ? `/courses/${id}/learn` : `/courses/${id}`}>
           <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600">{title}</h3>
-          <p className="mt-1 text-sm text-gray-500">by {instructor}</p>
+          <p className="mt-1 text-sm text-gray-500">por {instructor}</p>
         </Link>
         
         <div className="mt-4 flex items-center justify-between">
           <div className="flex items-center space-x-4 text-sm text-gray-500">
             <div className="flex items-center space-x-1">
               <Clock className="h-4 w-4" />
-              <span>{duration}</span>
+              <span>{duration}</span> 
             </div>
             <div className="flex items-center space-x-1">
               <Users className="h-4 w-4" />
-              <span>{enrolledCount} students</span>
+              <span>{enrolledCount} <FormattedMessage id="course.enrolled" /></span>
             </div>
           </div>
           {isEnrolled ? (
             <Link to={`/courses/${id}/learn`}>
-              <Button size="sm" className="flex items-center space-x-1">
+              <Button className="flex items-center space-x-1">
                 <Play className="h-4 w-4" />
-                <span>View Course</span>
+                <span><FormattedMessage id="course.view" /></span>
               </Button>
             </Link>
           ) : (

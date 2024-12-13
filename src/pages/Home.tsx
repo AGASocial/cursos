@@ -1,5 +1,6 @@
 import React from 'react';
 import { GraduationCap, BookOpen, Users, Star, ChevronRight } from 'lucide-react';
+import { FormattedMessage } from 'react-intl';
 import { Button } from '../components/ui/Button';
 import { useNavigate } from "react-router-dom";
 
@@ -16,15 +17,14 @@ export const Home = () => {
           <div className="py-24 sm:py-32">
             <div className="text-center">
               <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
-                Learn from the best instructors worldwide
+                <FormattedMessage id="home.hero.title" />
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-600">
-                Access high-quality courses, expert instructors, and a supportive learning community.
-                Start your learning journey today.
+                <FormattedMessage id="home.hero.subtitle" />
               </p>
               <div className="mt-10 flex items-center justify-center gap-x-6">
                 <Button size="lg" onClick={() => navigate("/courses")} className="rounded-full">
-                  Browse Courses <ChevronRight className="ml-2 h-4 w-4" />
+                  <FormattedMessage id="home.hero.cta" /> <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -38,15 +38,15 @@ export const Home = () => {
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
             <div className="text-center">
               <div className="text-4xl font-bold text-indigo-600">1000+</div>
-              <div className="mt-2 text-gray-600">Active Students</div>
+              <div className="mt-2 text-gray-600"><FormattedMessage id="home.stats.students" /></div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-indigo-600">100+</div>
-              <div className="mt-2 text-gray-600">Expert Instructors</div>
+              <div className="mt-2 text-gray-600"><FormattedMessage id="home.stats.instructors" /></div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-indigo-600">500+</div>
-              <div className="mt-2 text-gray-600">Courses Available</div>
+              <div className="mt-2 text-gray-600"><FormattedMessage id="home.stats.courses" /></div>
             </div>
           </div>
         </div>
@@ -56,8 +56,12 @@ export const Home = () => {
       <div className="bg-gray-50 py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Why Choose Us</h2>
-            <p className="mt-4 text-lg text-gray-600">Discover what makes our platform unique</p>
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              <FormattedMessage id="home.features.title" />
+            </h2>
+            <p className="mt-4 text-lg text-gray-600">
+              <FormattedMessage id="home.features.subtitle" />
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-12 sm:grid-cols-3">
             <div className="relative p-8 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow">
@@ -67,8 +71,12 @@ export const Home = () => {
                 </div>
               </div>
               <div className="pt-4">
-                <h3 className="mt-6 text-lg font-semibold text-gray-900">Expert Instructors</h3>
-                <p className="mt-2 text-gray-600">Learn from industry professionals and experts who bring real-world experience</p>
+                <h3 className="mt-6 text-lg font-semibold text-gray-900">
+                  <FormattedMessage id="home.features.experts.title" />
+                </h3>
+                <p className="mt-2 text-gray-600">
+                  <FormattedMessage id="home.features.experts.description" />
+                </p>
               </div>
             </div>
             <div className="relative p-8 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow">
@@ -78,8 +86,12 @@ export const Home = () => {
                 </div>
               </div>
               <div className="pt-4">
-                <h3 className="mt-6 text-lg font-semibold text-gray-900">Quality Content</h3>
-                <p className="mt-2 text-gray-600">Access carefully curated and regularly updated course materials</p>
+                <h3 className="mt-6 text-lg font-semibold text-gray-900">
+                  <FormattedMessage id="home.features.content.title" />
+                </h3>
+                <p className="mt-2 text-gray-600">
+                  <FormattedMessage id="home.features.content.description" />
+                </p>
               </div>
             </div>
             <div className="relative p-8 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow">
@@ -89,8 +101,12 @@ export const Home = () => {
                 </div>
               </div>
               <div className="pt-4">
-                <h3 className="mt-6 text-lg font-semibold text-gray-900">Community Support</h3>
-                <p className="mt-2 text-gray-600">Connect with peers and get help when needed through our active community</p>
+                <h3 className="mt-6 text-lg font-semibold text-gray-900">
+                  <FormattedMessage id="home.features.community.title" />
+                </h3>
+                <p className="mt-2 text-gray-600">
+                  <FormattedMessage id="home.features.community.description" />
+                </p>
               </div>
             </div>
           </div>
@@ -101,8 +117,12 @@ export const Home = () => {
       <div className="bg-white py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">What Our Students Say</h2>
-            <p className="mt-4 text-lg text-gray-600">Don't just take our word for it</p>
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              <FormattedMessage id="home.testimonials.title" />
+            </h2>
+            <p className="mt-4 text-lg text-gray-600">
+              <FormattedMessage id="home.testimonials.subtitle" />
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
@@ -131,8 +151,12 @@ export const Home = () => {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-16">
             <div className="max-w-xl">
-              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Ready to start learning?</h2>
-              <p className="mt-4 text-lg text-indigo-100">Join thousands of students who are already learning and growing with us. Start your journey today.</p>
+              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                <FormattedMessage id="home.cta.title" />
+              </h2>
+              <p className="mt-4 text-lg text-indigo-100">
+                <FormattedMessage id="home.cta.subtitle" />
+              </p>
             </div>
             <div className="flex items-center justify-center lg:justify-end">
               <Button 
@@ -140,7 +164,7 @@ export const Home = () => {
                 onClick={() => navigate("/register")}
                 className="rounded-full bg-white text-indigo-600 hover:bg-indigo-50"
               >
-                Get Started Now <ChevronRight className="ml-2 h-4 w-4" />
+                <FormattedMessage id="home.cta.button" /> <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </div>

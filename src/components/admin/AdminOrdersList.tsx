@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Clock, DollarSign } from 'lucide-react';
+import { FormattedMessage } from 'react-intl';
 import { Button } from '../ui/Button';
 import { getAllOrders, approveOrder, type Order } from '../../lib/orders';
 
@@ -31,7 +32,9 @@ export const AdminOrdersList = () => {
     return (
       <div className="text-center">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-        <p className="mt-2 text-gray-600">Loading orders...</p>
+        <p className="mt-2 text-gray-600">
+          <FormattedMessage id="admin.orders.loading" />
+        </p>
       </div>
     );
   }
@@ -40,8 +43,12 @@ export const AdminOrdersList = () => {
     return (
       <div className="rounded-lg border-2 border-dashed border-gray-300 p-12">
         <div className="text-center">
-          <h3 className="mt-2 text-sm font-semibold text-gray-900">No orders</h3>
-          <p className="mt-1 text-sm text-gray-500">No orders have been placed yet.</p>
+          <h3 className="mt-2 text-sm font-semibold text-gray-900">
+            <FormattedMessage id="admin.orders.empty" />
+          </h3>
+          <p className="mt-1 text-sm text-gray-500">
+            <FormattedMessage id="admin.orders.empty.message" />
+          </p>
         </div>
       </div>
     );
@@ -53,19 +60,19 @@ export const AdminOrdersList = () => {
         <thead className="bg-gray-50">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-              Order Details
+              <FormattedMessage id="admin.orders.title" />
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-              Items
+              <FormattedMessage id="admin.orders.items" />
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-              Total
+              <FormattedMessage id="admin.orders.total" />
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-              Status
+              <FormattedMessage id="admin.orders.status" />
             </th>
             <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-              Actions
+              <FormattedMessage id="admin.actions" />
             </th>
           </tr>
         </thead>
@@ -108,12 +115,12 @@ export const AdminOrdersList = () => {
                   {order.status === 'completed' ? (
                     <>
                       <Check className="mr-1 h-3 w-3" />
-                      Completed
+                      <FormattedMessage id="admin.orders.completed" />
                     </>
                   ) : (
                     <>
                       <Clock className="mr-1 h-3 w-3" />
-                      Pending
+                      <FormattedMessage id="admin.orders.pending" />
                     </>
                   )}
                 </span>
@@ -121,11 +128,14 @@ export const AdminOrdersList = () => {
               <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                 {order.status === 'pending' && (
                   <Button
-                    size="sm"
                     onClick={() => handleApproveOrder(order.id)}
                     disabled={processingOrder === order.id}
                   >
-                    {processingOrder === order.id ? 'Processing...' : 'Approve'}
+                    {processingOrder === order.id ? (
+                      <FormattedMessage id="admin.orders.processing" />
+                    ) : (
+                      <FormattedMessage id="admin.orders.approve" />
+                    )}
                   </Button>
                 )}
               </td>

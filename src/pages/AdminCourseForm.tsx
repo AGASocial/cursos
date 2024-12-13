@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Shield, Upload, ArrowLeft, Plus, Pencil, Trash2, BookOpen, LayoutList } from 'lucide-react';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
+import { Shield, Upload, ArrowLeft, Plus, Pencil, Trash2, BookOpen, LayoutDashboard, GripVertical } from 'lucide-react';
+import { FormattedMessage } from 'react-intl';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
+import { MarkdownEditor } from '../components/editor/MarkdownEditor';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin, createCourse, updateCourse } from '../lib/admin';
 import { getCourseById } from '../lib/courses';
-import { getCourseChapters, type Chapter } from '../lib/chapters';
-import { ChapterForm } from '../components/admin/ChapterForm';
+import { getCourseChapters, reorderChapters, type Chapter } from '../lib/chapters';
 
-const categories = ['Programming', 'Design', 'Business', 'Marketing'];
+const categories = ['programming', 'design', 'business', 'marketing'] as const;
 const levels = ['beginner', 'intermediate', 'advanced'] as const;
 
 type TabType = 'info' | 'chapters';
@@ -19,21 +19,22 @@ export const AdminCourseForm = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { courseId } = useParams();
+  const { state } = useLocation();
   const isEditMode = Boolean(courseId);
 
-  const [activeTab, setActiveTab] = useState<TabType>('info');
+  const [activeTab, setActiveTab] = useState<TabType>(state?.activeTab || 'info');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [thumbnail, setThumbnail] = useState<File | null>(null);
-  const [showChapterModal, setShowChapterModal] = useState(false);
-  const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
+  const [currentThumbnail, setCurrentThumbnail] = useState<string>('');
+  const [reordering, setReordering] = useState(false);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     instructor: '',
     duration: '',
     price: '',
-    category: 'Programming',
+    category: 'programming' as typeof categories[number],
     level: 'beginner' as typeof levels[number],
     description: '',
     aboutCourse: '',
@@ -60,6 +61,7 @@ export const AdminCourseForm = () => {
           aboutCourse: course.aboutCourse,
           learningObjectives: course.learningObjectives,
         });
+        setCurrentThumbnail(course.thumbnail);
         setChapters(courseChapters);
       }
     };
@@ -104,33 +106,62 @@ export const AdminCourseForm = () => {
     navigate('/admin');
   };
 
-  const handleChapterSuccess = () => {
-    if (courseId) {
-      getCourseChapters(courseId).then(setChapters);
+  const handleReorder = async (draggedId: string, targetId: string) => {
+    const oldIndex = chapters.findIndex(chapter => chapter.id === draggedId);
+    const newIndex = chapters.findIndex(chapter => chapter.id === targetId);
+    
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newChapters = [...chapters];
+    const [removed] = newChapters.splice(oldIndex, 1);
+    newChapters.splice(newIndex, 0, removed);
+    
+    setChapters(newChapters);
+    
+    const { success, error: reorderError } = await reorderChapters(
+      courseId!,
+      newChapters.map(chapter => chapter.id)
+    );
+
+    if (!success) {
+      setError(reorderError || 'Failed to reorder chapters');
+      // Revert changes on error
+      const refreshedChapters = await getCourseChapters(courseId!);
+      setChapters(refreshedChapters);
     }
-    setShowChapterModal(false);
-    setEditingChapter(null);
   };
 
-  const handleAddChapter = () => {
-    setEditingChapter(null);
-    setShowChapterModal(true);
+  const handleDragStart = (e: React.DragEvent, chapterId: string) => {
+    e.dataTransfer.setData('text/plain', chapterId);
+    setReordering(true);
   };
 
-  const handleEditChapter = (chapter: Chapter) => {
-    setEditingChapter(chapter);
-    setShowChapterModal(true);
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const draggedId = e.dataTransfer.getData('text/plain');
+    if (draggedId !== targetId) {
+      handleReorder(draggedId, targetId);
+    }
+    setReordering(false);
+  };
+
+  const handleDragEnd = () => {
+    setReordering(false);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate('/admin')}
           className="group mb-8 inline-flex items-center text-sm text-gray-500 hover:text-indigo-600 transition-colors duration-200"
         >
           <ArrowLeft className="mr-2 h-4 w-4 transform transition-transform group-hover:-translate-x-1" />
-          Back to courses
+          <FormattedMessage id="admin.chapters.back" />
         </button>
 
         <div className="mb-8 text-center">
@@ -138,12 +169,14 @@ export const AdminCourseForm = () => {
             <Shield className="h-8 w-8 text-indigo-600" />
           </div>
           <h1 className="mt-4 text-3xl font-bold text-gray-900">
-            {isEditMode ? 'Edit Course' : 'Create Course'}
+            <FormattedMessage 
+              id={isEditMode ? 'admin.courses.edit.title' : 'admin.courses.create.title'} 
+            />
           </h1>
           <p className="mt-2 text-base text-gray-600">
-            {isEditMode
-              ? 'Update your course information'
-              : 'Create a new course for your students'}
+            <FormattedMessage 
+              id={isEditMode ? 'admin.courses.edit.subtitle' : 'admin.courses.create.subtitle'} 
+            />
           </p>
         </div>
 
@@ -159,7 +192,7 @@ export const AdminCourseForm = () => {
             >
               <div className="flex items-center justify-center space-x-2">
                 <BookOpen className="h-4 w-4" />
-                <span>Course Information</span>
+                <span><FormattedMessage id="admin.courses.tabs.info" /></span>
               </div>
             </button>
             <button
@@ -171,8 +204,8 @@ export const AdminCourseForm = () => {
               }`}
             >
               <div className="flex items-center justify-center space-x-2">
-                <LayoutList className="h-4 w-4" />
-                <span>Chapters</span>
+                <LayoutDashboard className="h-4 w-4" />
+                <span><FormattedMessage id="admin.courses.tabs.chapters" /></span>
               </div>
             </button>
           </div>
@@ -184,7 +217,7 @@ export const AdminCourseForm = () => {
             <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-black/5">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <Input
-                  label="Course Title"
+                  label={<FormattedMessage id="admin.courses.form.title" />}
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -192,7 +225,7 @@ export const AdminCourseForm = () => {
                 />
 
                 <Input
-                  label="Instructor"
+                  label={<FormattedMessage id="admin.courses.form.instructor" />}
                   required
                   value={formData.instructor}
                   onChange={(e) => setFormData({ ...formData, instructor: e.target.value })}
@@ -200,7 +233,7 @@ export const AdminCourseForm = () => {
                 />
 
                 <Input
-                  label="Duration (e.g., '2 hours')"
+                  label={<FormattedMessage id="admin.courses.form.duration" />}
                   required
                   value={formData.duration}
                   onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
@@ -208,7 +241,7 @@ export const AdminCourseForm = () => {
                 />
 
                 <Input
-                  label="Price"
+                  label={<FormattedMessage id="admin.courses.form.price" />}
                   type="number"
                   min="0"
                   step="0.01"
@@ -220,7 +253,7 @@ export const AdminCourseForm = () => {
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Category
+                    <FormattedMessage id="admin.courses.form.category" />
                   </label>
                   <select
                     className="h-12 block w-full rounded-lg border border-gray-200 px-4 py-2.5 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors duration-200"
@@ -229,7 +262,7 @@ export const AdminCourseForm = () => {
                   >
                     {categories.map((category) => (
                       <option key={category} value={category}>
-                        {category}
+                        <FormattedMessage id={`admin.courses.form.category.${category}`} />
                       </option>
                     ))}
                   </select>
@@ -237,7 +270,7 @@ export const AdminCourseForm = () => {
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Level
+                    <FormattedMessage id="admin.courses.form.level" />
                   </label>
                   <select
                     className="h-12 block w-full rounded-lg border border-gray-200 px-4 py-2.5 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors duration-200"
@@ -246,7 +279,7 @@ export const AdminCourseForm = () => {
                   >
                     {levels.map((level) => (
                       <option key={level} value={level}>
-                        {level.charAt(0).toUpperCase() + level.slice(1)}
+                        <FormattedMessage id={`admin.courses.form.level.${level}`} />
                       </option>
                     ))}
                   </select>
@@ -254,7 +287,7 @@ export const AdminCourseForm = () => {
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Short Description
+                    <FormattedMessage id="admin.courses.form.description" />
                   </label>
                   <textarea
                     className="block w-full rounded-lg border border-gray-200 px-4 py-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors duration-200"
@@ -267,50 +300,52 @@ export const AdminCourseForm = () => {
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    About This Course (Markdown)
+                    <FormattedMessage id="admin.courses.form.about" />
                   </label>
-                  <textarea
-                    className="block w-full rounded-lg border border-gray-200 px-4 py-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors duration-200 font-mono text-sm"
-                    rows={6}
-                    required
+                  <MarkdownEditor
                     value={formData.aboutCourse}
-                    onChange={(e) => setFormData({ ...formData, aboutCourse: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, aboutCourse: value })}
                     placeholder="# About this course&#10;&#10;Describe the course in detail using Markdown..."
+                    minHeight="300px"
                   />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    What You'll Learn (Markdown)
+                    <FormattedMessage id="admin.courses.form.objectives" />
                   </label>
-                  <textarea
-                    className="block w-full rounded-lg border border-gray-200 px-4 py-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors duration-200 font-mono text-sm"
-                    rows={6}
-                    required
+                  <MarkdownEditor
                     value={formData.learningObjectives}
-                    onChange={(e) => setFormData({ ...formData, learningObjectives: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, learningObjectives: value })}
                     placeholder="# Learning Objectives&#10;&#10;- First objective&#10;- Second objective&#10;..."
+                    minHeight="300px"
                   />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Course Thumbnail
+                    <FormattedMessage id="admin.courses.form.thumbnail" />
                   </label>
                   <div className="mt-1 flex items-center space-x-4">
                     <label className="group relative cursor-pointer">
                       <div className="flex h-40 w-56 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white hover:border-indigo-500 transition-colors duration-200">
-                        {thumbnail ? (
+                        {thumbnail ? ( 
                           <img
                             src={URL.createObjectURL(thumbnail)}
                             alt="Thumbnail preview"
+                            className="h-full w-full rounded-lg object-cover"
+                          />
+                        ) : isEditMode && currentThumbnail ? (
+                          <img
+                            src={currentThumbnail}
+                            alt="Current thumbnail"
                             className="h-full w-full rounded-lg object-cover"
                           />
                         ) : (
                           <div className="text-center">
                             <Upload className="mx-auto h-8 w-8 text-gray-400 group-hover:text-indigo-500 transition-colors duration-200" />
                             <span className="mt-2 block text-sm font-medium text-gray-600 group-hover:text-indigo-600 transition-colors duration-200">
-                              Upload thumbnail
+                              <FormattedMessage id="admin.courses.form.thumbnail.upload" />
                             </span>
                           </div>
                         )}
@@ -331,7 +366,7 @@ export const AdminCourseForm = () => {
                         onClick={() => setThumbnail(null)}
                         className="text-sm font-medium text-red-600 hover:text-red-500 transition-colors duration-200"
                       >
-                        Remove
+                        <FormattedMessage id="admin.courses.form.thumbnail.remove" />
                       </button>
                     )}
                   </div>
@@ -352,10 +387,18 @@ export const AdminCourseForm = () => {
                     {loading ? (
                       <div className="flex items-center space-x-2">
                         <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin" />
-                        <span>{isEditMode ? 'Saving...' : 'Creating...'}</span>
+                        <span>
+                          <FormattedMessage 
+                            id={isEditMode ? 'admin.courses.form.saving' : 'admin.courses.form.creating'} 
+                          />
+                        </span>
                       </div>
                     ) : (
-                      <span>{isEditMode ? 'Save Changes' : 'Create Course'}</span>
+                      <span>
+                        <FormattedMessage 
+                          id={isEditMode ? 'admin.courses.form.save' : 'admin.courses.form.create'} 
+                        />
+                      </span>
                     )}
                   </Button>
                 </div>
@@ -367,14 +410,15 @@ export const AdminCourseForm = () => {
           {isEditMode && activeTab === 'chapters' && (
             <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-black/5">
               <div className="mb-8 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900">Course Chapters</h2>
-                <Button
-                  onClick={handleAddChapter}
-                  className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Chapter</span>
-                </Button>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  <FormattedMessage id="admin.courses.chapters.title" />
+                </h2>
+                <Link to={`/admin/courses/${courseId}/chapters`}>
+                  <Button className="flex items-center space-x-2">
+                    <Plus className="h-4 w-4" />
+                    <span><FormattedMessage id="admin.chapters.new" /></span>
+                  </Button>
+                </Link>
               </div>
 
               {chapters.length > 0 ? (
@@ -382,29 +426,36 @@ export const AdminCourseForm = () => {
                   {chapters.map((chapter) => (
                     <div
                       key={chapter.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, chapter.id)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, chapter.id)}
+                      onDragEnd={handleDragEnd}
                       className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 hover:border-indigo-200 hover:shadow-sm transition-all duration-200"
                     >
-                      <div>
+                      <div className="flex items-center space-x-3">
+                        <div 
+                          className={`cursor-grab active:cursor-grabbing ${
+                            reordering ? 'text-indigo-600' : 'text-gray-400'
+                          }`}
+                        >
+                          <GripVertical className="h-5 w-5" />
+                        </div>
                         <h3 className="font-medium text-gray-900">{chapter.title}</h3>
-                        <p className="text-sm text-gray-500">Order: {chapter.order}</p>
                       </div>
                       <div className="flex space-x-3">
+                        <Link to={`/admin/courses/${courseId}/chapters/${chapter.id}`}>
+                          <Button variant="outline" className="flex items-center space-x-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300">
+                            <Pencil className="h-4 w-4" />
+                            <span><FormattedMessage id="admin.courses.edit" /></span>
+                          </Button>
+                        </Link>
                         <Button
                           variant="outline"
-                          size="sm"
-                          className="flex items-center space-x-2 px-4 py-2 border border-gray-200 hover:border-indigo-500 hover:text-indigo-600 rounded-lg transition-all duration-200"
-                          onClick={() => handleEditChapter(chapter)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                          <span>Edit</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center space-x-2 px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-500 hover:text-red-700 rounded-lg transition-all duration-200"
+                          className="flex items-center space-x-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
                         >
                           <Trash2 className="h-4 w-4" />
-                          <span>Delete</span>
+                          <span><FormattedMessage id="admin.courses.delete" /></span>
                         </Button>
                       </div>
                     </div>
@@ -412,39 +463,24 @@ export const AdminCourseForm = () => {
                 </div>
               ) : (
                 <div className="rounded-xl border-2 border-dashed border-gray-200 p-12 text-center">
-                  <LayoutList className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-4 text-base font-semibold text-gray-900">No chapters yet</h3>
+                  <LayoutDashboard className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-4 text-base font-semibold text-gray-900">
+                    <FormattedMessage id="admin.courses.chapters.empty" />
+                  </h3>
                   <p className="mt-2 text-sm text-gray-500">
-                    Get started by creating a new chapter.
+                    <FormattedMessage id="admin.courses.chapters.empty.message" />
                   </p>
-                  <Button
-                    onClick={handleAddChapter}
-                    className="mt-6 inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Add First Chapter</span>
-                  </Button>
+                  <Link to={`/admin/courses/${courseId}/chapters`}>
+                    <Button className="mt-6 flex items-center space-x-2">
+                      <Plus className="h-4 w-4" />
+                      <span><FormattedMessage id="admin.courses.chapters.first" /></span>
+                    </Button>
+                  </Link>
                 </div>
               )}
             </div>
           )}
         </div>
-
-        {/* Chapter Modal */}
-        <Modal
-          isOpen={showChapterModal}
-          onClose={() => {
-            setShowChapterModal(false);
-            setEditingChapter(null);
-          }}
-          title={editingChapter ? 'Edit Chapter' : 'New Chapter'}
-        >
-          <ChapterForm
-            courseId={courseId!}
-            onSuccess={handleChapterSuccess}
-            initialData={editingChapter || undefined}
-          />
-        </Modal>
       </div>
     </div>
   );

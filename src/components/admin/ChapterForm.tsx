@@ -1,31 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { FormattedMessage } from 'react-intl';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { createChapter, updateChapter } from '../../lib/chapters';
+import { MarkdownEditor } from '../editor/MarkdownEditor';
+import { createChapter, updateChapter, getChapter } from '../../lib/chapters';
 
 interface ChapterFormProps {
   courseId: string;
+  chapterId?: string;
   onSuccess: () => void;
-  initialData?: {
-    id: string;
-    title: string;
-    content: string;
-    order: number;
-  };
 }
 
 export const ChapterForm: React.FC<ChapterFormProps> = ({
   courseId,
-  onSuccess,
-  initialData
+  chapterId,
+  onSuccess
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    title: initialData?.title || '',
-    content: initialData?.content || '',
-    order: initialData?.order || 0
+    title: '',
+    content: '',
   });
+
+  useEffect(() => {
+    const fetchChapter = async () => {
+      if (!chapterId) return;
+      
+      const chapter = await getChapter(courseId, chapterId);
+      if (chapter) {
+        setFormData({
+          title: chapter.title,
+          content: chapter.content
+        });
+      }
+    };
+
+    fetchChapter();
+  }, [courseId, chapterId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,12 +45,12 @@ export const ChapterForm: React.FC<ChapterFormProps> = ({
     setLoading(true);
 
     try {
-      const result = initialData
-        ? await updateChapter(courseId, initialData.id, formData)
+      const result = chapterId
+        ? await updateChapter(courseId, chapterId, formData)
         : await createChapter(courseId, formData);
 
       if (!result.success) {
-        setError(result.error || 'Failed to save chapter');
+        setError(result.error || <FormattedMessage id="admin.chapters.form.error" />);
         return;
       }
 
@@ -53,7 +65,7 @@ export const ChapterForm: React.FC<ChapterFormProps> = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <Input
-        label="Chapter Title"
+        label={<FormattedMessage id="admin.chapters.form.title" />}
         required
         value={formData.title}
         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -61,32 +73,26 @@ export const ChapterForm: React.FC<ChapterFormProps> = ({
 
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700">
-          Content (Markdown)
+          <FormattedMessage id="admin.chapters.form.content" />
         </label>
-        <textarea
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          rows={12}
-          required
+        <MarkdownEditor
           value={formData.content}
-          onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-          placeholder="# Chapter Title&#10;&#10;## Section 1&#10;&#10;Content goes here..."
+          onChange={(value) => setFormData({ ...formData, content: value })}
+          placeholder={<FormattedMessage id="admin.chapters.form.placeholder" />}
         />
       </div>
-
-      <Input
-        label="Order"
-        type="number"
-        min="0"
-        required
-        value={formData.order}
-        onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value, 10) })}
-      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex justify-end space-x-3">
         <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : initialData ? 'Update Chapter' : 'Create Chapter'}
+          {loading ? (
+            <FormattedMessage id="admin.chapters.form.saving" />
+          ) : chapterId ? (
+            <FormattedMessage id="admin.chapters.form.save" />
+          ) : (
+            <FormattedMessage id="admin.chapters.form.create" />
+          )}
         </Button>
       </div>
     </form>

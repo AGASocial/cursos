@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, BookOpen, Menu } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { markdownComponents, processYouTubeEmbeds } from '../lib/markdown';
 import { getCourseById, type Course } from '../lib/courses';
 import { getCourseChapters, type Chapter } from '../lib/chapters';
 import { useAuth } from '../contexts/AuthContext';
@@ -77,7 +78,7 @@ export const ViewCourse = () => {
             <h2 className="text-lg font-semibold text-gray-900">{course.title}</h2>
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600 lg:hidden"
+              components={markdownComponents}
             >
               <Menu className="h-6 w-6" />
             </button>
@@ -135,7 +136,12 @@ export const ViewCourse = () => {
             <h1 className="text-3xl font-bold text-gray-900">{selectedChapter.title}</h1>
           </div>
           <div className="prose prose-lg prose-blue max-w-none prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-h3:text-2xl prose-p:leading-relaxed prose-p:text-gray-600 prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline prose-strong:text-gray-900 prose-code:rounded-md prose-code:bg-gray-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:text-blue-600 prose-code:before:content-[''] prose-code:after:content-[''] prose-pre:bg-gray-50 prose-pre:p-6 prose-pre:rounded-xl prose-blockquote:border-l-4 prose-blockquote:border-blue-200 prose-blockquote:bg-blue-50 prose-blockquote:p-4 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-ul:list-disc prose-ol:list-decimal">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedChapter.content}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
+              {selectedChapter.content}
+            </ReactMarkdown>
           </div>
         </div>
       </div>

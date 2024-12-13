@@ -1,5 +1,6 @@
 import React from 'react';
 import { Facebook, Instagram, Twitter, Mail, Phone } from 'lucide-react';
+import { FormattedMessage } from 'react-intl';
 import { Link } from 'react-router-dom';
 
 export const Footer = () => {
@@ -9,29 +10,33 @@ export const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Company Info */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">AGA Online Courses</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              <FormattedMessage id="app.title" />
+            </h3>
             <p className="text-gray-400 mb-4">
-              Empowering learners worldwide with quality education and professional development opportunities.
+              <FormattedMessage id="footer.description" />
             </p>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              <FormattedMessage id="footer.quickLinks" />
+            </h3>
             <ul className="space-y-2">
               <li>
                 <Link to="/courses" className="text-gray-400 hover:text-white transition-colors">
-                  Courses
+                  <FormattedMessage id="nav.courses" />
                 </Link>
               </li>
               <li>
                 <Link to="/about" className="text-gray-400 hover:text-white transition-colors">
-                  About Us
+                  <FormattedMessage id="footer.about" />
                 </Link>
               </li>
               <li>
                 <Link to="/contact" className="text-gray-400 hover:text-white transition-colors">
-                  Contact
+                  <FormattedMessage id="footer.contact" />
                 </Link>
               </li>
             </ul>
@@ -39,18 +44,20 @@ export const Footer = () => {
 
           {/* Contact Info */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Contact Us</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              <FormattedMessage id="footer.contactUs" />
+            </h3>
             <div className="space-y-4">
               <div className="flex items-center space-x-3">
                 <Mail className="h-5 w-5 text-gray-400" />
-                <a href="mailto:contact@agacourses.com" className="text-gray-400 hover:text-white transition-colors">
-                  contact@agacourses.com
+                <a href="mailto:info@aga.social" className="text-gray-400 hover:text-white transition-colors">
+                  <FormattedMessage id="footer.email" />
                 </a>
               </div>
               <div className="flex items-center space-x-3">
                 <Phone className="h-5 w-5 text-gray-400" />
                 <a href="tel:+1234567890" className="text-gray-400 hover:text-white transition-colors">
-                  +1 (234) 567-890
+                  <FormattedMessage id="footer.phone" />
                 </a>
               </div>
               {/* Social Links */}
@@ -86,7 +93,10 @@ export const Footer = () => {
 
         {/* Copyright */}
         <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-          <p>© {new Date().getFullYear()} AGA Online Courses. All rights reserved.</p>
+          <p>
+            © {new Date().getFullYear()} <FormattedMessage id="app.title" />.{' '}
+            <FormattedMessage id="footer.rights" />
+          </p>
         </div>
       </div>
     </footer>

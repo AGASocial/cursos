@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { FormattedMessage } from 'react-intl';
 import { Clock, Users, BookOpen, BarChart, ArrowLeft, ShoppingCart } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { markdownComponents, processYouTubeEmbeds } from '../lib/markdown';
 import { Button } from '../components/ui/Button';
 import { getCourseById, type Course } from '../lib/courses';
 import { useCart } from '../contexts/CartContext';
@@ -79,13 +81,14 @@ export const CourseDetails = () => {
             className="mb-8 inline-flex items-center text-sm text-white/90 hover:text-white transition-colors duration-200 hover:translate-x-[-4px] transform"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to courses
+            <FormattedMessage id="nav.courses" />
           </button>
           <div className="lg:flex lg:items-center lg:space-x-12">
             <div className="lg:w-1/2">
               <h1 className="text-4xl font-bold text-white sm:text-5xl leading-tight">
                 {course.title}
               </h1>
+              <p className="mt-2 text-lg text-white/80">por {course.instructor}</p>
               <p className="mt-6 text-lg text-white/90 leading-relaxed">{course.description}</p>
               <div className="mt-8 flex flex-wrap items-center gap-6 text-white/90">
                 <div className="flex items-center backdrop-blur-sm bg-white/10 rounded-full px-4 py-2">
@@ -94,11 +97,11 @@ export const CourseDetails = () => {
                 </div>
                 <div className="flex items-center backdrop-blur-sm bg-white/10 rounded-full px-4 py-2">
                   <Users className="mr-2 h-5 w-5" />
-                  <span>{course.enrolledCount} students</span>
+                  <span>{course.enrolledCount} <FormattedMessage id="course.enrolled" /></span>
                 </div>
                 <div className="flex items-center backdrop-blur-sm bg-white/10 rounded-full px-4 py-2">
                   <BarChart className="mr-2 h-5 w-5" />
-                  <span className="capitalize">{course.level}</span>
+                  <span><FormattedMessage id={`admin.courses.form.level.${course.level}`} /></span>
                 </div>
               </div>
             </div>
@@ -121,17 +124,27 @@ export const CourseDetails = () => {
           {/* Main Content */}
           <div className="lg:col-span-2">
             <div className="rounded-2xl bg-white p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <h2 className="text-2xl font-bold text-gray-900 border-b border-gray-100 pb-4">About this course</h2>
+              <h2 className="text-2xl font-bold text-gray-900 border-b border-gray-100 pb-4">
+                <FormattedMessage id="course.about" />
+              </h2>
               <div className="prose prose-lg mt-6 max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={markdownComponents}
+                >
                   {course.aboutCourse}
                 </ReactMarkdown>
               </div>
 
               <div className="mt-12">
-                <h3 className="text-xl font-bold text-gray-900 border-b border-gray-100 pb-4">What you'll learn</h3>
+                <h3 className="text-xl font-bold text-gray-900 border-b border-gray-100 pb-4">
+                  <FormattedMessage id="course.objectives" />
+                </h3>
                 <div className="prose prose-lg mt-6 max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
                     {course.learningObjectives}
                   </ReactMarkdown>
                 </div>
@@ -154,20 +167,20 @@ export const CourseDetails = () => {
                   disabled={isInCart || !user}
                 >
                   <ShoppingCart className="mr-2 h-5 w-5" />
-                  {isInCart ? 'Added to Cart' : 'Enroll Now'}
+                  {isInCart ? <FormattedMessage id="course.addedToCart" /> : <FormattedMessage id="course.enroll" />}
                 </Button>
                 <div className="mt-8 space-y-5 text-sm text-gray-600">
                   <div className="flex items-center p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
                     <Clock className="mr-3 h-5 w-5 text-blue-600" />
-                    <span>{course.duration} of content</span>
+                    <span>{course.duration}</span>
                   </div>
                   <div className="flex items-center p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
                     <Users className="mr-3 h-5 w-5 text-blue-600" />
-                    <span>{course.enrolledCount} students enrolled</span>
+                    <span>{course.enrolledCount} <FormattedMessage id="course.enrolled" /></span>
                   </div>
                   <div className="flex items-center p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
                     <BarChart className="mr-3 h-5 w-5 text-blue-600" />
-                    <span className="capitalize">{course.level} level</span>
+                    <span><FormattedMessage id={`admin.courses.form.level.${course.level}`} /></span>
                   </div>
                 </div>
               </div>

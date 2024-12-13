@@ -11,15 +11,18 @@ import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
 import { AdminCourseForm } from './pages/AdminCourseForm';
 import { Checkout } from './pages/Checkout';
+import { EditChapter } from './pages/EditChapter';
 import { AuthProvider } from './contexts/AuthContext';
+import { LanguageProvider } from './i18n/LanguageContext';
 import { CartProvider } from './contexts/CartContext';
 import { PrivateRoute } from './components/auth/PrivateRoute';
 
 export default function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <CartProvider>
+    <LanguageProvider>
+      <Router>
+        <AuthProvider>
+          <CartProvider>
           <Routes>
             <Route
               path="/"
@@ -39,9 +42,7 @@ export default function App() {
                 <div className="min-h-screen bg-gray-50 flex flex-col">
                   <Navbar />
                   <div className="flex-grow">
-                    <PrivateRoute>
-                      <Courses />
-                    </PrivateRoute>
+                    <Courses />
                   </div>
                   <Footer />
                 </div>
@@ -53,9 +54,7 @@ export default function App() {
                 <div className="min-h-screen bg-gray-50 flex flex-col">
                   <Navbar />
                   <div className="flex-grow">
-                    <PrivateRoute>
-                      <CourseDetails />
-                    </PrivateRoute>
+                    <CourseDetails />
                   </div>
                   <Footer />
                 </div>
@@ -114,6 +113,18 @@ export default function App() {
               }
             />
             <Route
+              path="/admin/courses/:courseId/chapters/:chapterId?"
+              element={
+                <div className="min-h-screen bg-gray-50 flex flex-col">
+                  <Navbar />
+                  <div className="flex-grow">
+                    <EditChapter />
+                  </div>
+                  <Footer />
+                </div>
+              }
+            />
+            <Route
               path="/checkout"
               element={
                 <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -129,7 +140,8 @@ export default function App() {
             />
           </Routes>
         </CartProvider>
-      </AuthProvider>
-    </Router>
+        </AuthProvider>
+      </Router>
+    </LanguageProvider>
   );
 }

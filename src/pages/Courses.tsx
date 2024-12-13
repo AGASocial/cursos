@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { FormattedMessage, useIntl } from 'react-intl';
 import { Search, BookOpen } from 'lucide-react';
 import { Input } from '../components/ui/Input';
 import { CourseCard } from '../components/course/CourseCard';
@@ -6,17 +7,18 @@ import { getCourses, type Course } from '../lib/courses';
 import { getUserData } from '../lib/users';
 import { useAuth } from '../contexts/AuthContext';
 
-const categories = ['All', 'Programming', 'Design', 'Business', 'Marketing'];
-const levels = ['All', 'Beginner', 'Intermediate', 'Advanced'];
+const categories = ['all', 'programming', 'design', 'business', 'marketing'] as const;
+const levels = ['all', 'beginner', 'intermediate', 'advanced'] as const;
 
 export const Courses = () => {
+  const intl = useIntl();
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrolledCourses, setEnrolledCourses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedLevel, setSelectedLevel] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedLevel, setSelectedLevel] = useState('all');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,8 +38,8 @@ export const Courses = () => {
   const filteredCourses = courses.filter(course => {
     const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          course.instructor.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || course.category === selectedCategory;
-    const matchesLevel = selectedLevel === 'All' || course.level === selectedLevel.toLowerCase();
+    const matchesCategory = selectedCategory === 'all' || course.category === selectedCategory;
+    const matchesLevel = selectedLevel === 'all' || course.level === selectedLevel;
     return matchesSearch && matchesCategory && matchesLevel;
   });
 
@@ -50,10 +52,10 @@ export const Courses = () => {
             <BookOpen className="h-8 w-8" />
           </div>
           <h1 className="mt-4 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-            Explore Our Courses
+            <FormattedMessage id="courses.title" />
           </h1>
           <p className="mt-4 text-xl text-gray-600 max-w-2xl mx-auto">
-            Discover a wide range of courses taught by expert instructors
+            <FormattedMessage id="courses.subtitle" />
           </p>
         </div>
 
@@ -63,7 +65,7 @@ export const Courses = () => {
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <Input
               type="text"
-              placeholder="Search courses by title or instructor..."
+              placeholder={intl.formatMessage({ id: 'courses.search.placeholder' })}
               className="pl-12 h-12 text-lg rounded-xl border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -72,7 +74,9 @@ export const Courses = () => {
 
           <div className="flex flex-wrap gap-8">
             <div className="space-y-3 flex-1">
-              <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Category</label>
+              <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                <FormattedMessage id="courses.filter.category" />
+              </label>
               <div className="flex flex-wrap gap-2">
                 {categories.map((category) => (
                   <button
@@ -84,14 +88,16 @@ export const Courses = () => {
                         : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:scale-105'
                     }`}
                   >
-                    {category}
+                    <FormattedMessage id={category === 'all' ? 'courses.filter.all' : `admin.courses.form.category.${category}`} />
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="space-y-3 flex-1">
-              <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Level</label>
+              <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                <FormattedMessage id="courses.filter.level" />
+              </label>
               <div className="flex flex-wrap gap-2">
                 {levels.map((level) => (
                   <button
@@ -103,7 +109,7 @@ export const Courses = () => {
                         : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:scale-105'
                     }`}
                   >
-                    {level}
+                    <FormattedMessage id={level === 'all' ? 'courses.filter.all' : `admin.courses.form.level.${level}`} />
                   </button>
                 ))}
               </div>
@@ -115,7 +121,7 @@ export const Courses = () => {
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-indigo-600 border-r-transparent"></div>
-            <p className="mt-4 text-lg text-gray-600">Loading amazing courses for you...</p>
+            <p className="mt-4 text-lg text-gray-600"><FormattedMessage id="courses.loading" /></p>
           </div>
         ) : filteredCourses.length > 0 ? (
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
@@ -129,8 +135,8 @@ export const Courses = () => {
           </div>
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-2xl">
-            <p className="text-lg text-gray-600">No courses found matching your criteria.</p>
-            <p className="mt-2 text-gray-500">Try adjusting your filters or search term.</p>
+            <p className="text-lg text-gray-600"><FormattedMessage id="courses.empty" /></p>
+            <p className="mt-2 text-gray-500"><FormattedMessage id="courses.empty.suggestion" /></p>
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShoppingCart, X } from 'lucide-react';
+import { FormattedMessage } from 'react-intl';
 import { Button } from '../ui/Button';
 import { useCart } from '../../contexts/CartContext';
 import { Link, useNavigate } from 'react-router-dom';
@@ -35,10 +36,14 @@ export const CartDropdown = () => {
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute right-0 z-40 mt-2 w-80 rounded-lg bg-white p-4 shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-900">Shopping Cart</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              <FormattedMessage id="cart.title" />
+            </h3>
             
             {state.items.length === 0 ? (
-              <p className="mt-2 text-sm text-gray-500">Your cart is empty</p>
+              <p className="mt-2 text-sm text-gray-500">
+                <FormattedMessage id="cart.empty" />
+              </p>
             ) : (
               <>
                 <div className="mt-4 space-y-4">
@@ -67,13 +72,15 @@ export const CartDropdown = () => {
 
                 <div className="mt-4 border-t pt-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-base font-medium text-gray-900">Total</span>
+                    <span className="text-base font-medium text-gray-900">
+                      <FormattedMessage id="cart.total" />
+                    </span>
                     <span className="text-base font-medium text-gray-900">
                       ${state.total.toFixed(2)}
                     </span>
                   </div>
                   <Button className="mt-4 w-full" onClick={handleCheckout}>
-                    Checkout
+                    <FormattedMessage id="cart.checkout" />
                   </Button>
                 </div>
               </>

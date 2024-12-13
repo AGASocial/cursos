@@ -55,6 +55,27 @@ export const getCourseChapters = async (courseId: string): Promise<Chapter[]> =>
   }
 };
 
+export const getChapter = async (courseId: string, chapterId: string): Promise<Chapter | null> => {
+  try {
+    const chapterRef = doc(db, 'courses', courseId, 'chapters', chapterId);
+    const chapterDoc = await getDoc(chapterRef);
+    
+    if (!chapterDoc.exists()) {
+      return null;
+    }
+
+    return {
+      id: chapterDoc.id,
+      ...chapterDoc.data(),
+      createdAt: chapterDoc.data().createdAt?.toDate(),
+      updatedAt: chapterDoc.data().updatedAt?.toDate()
+    } as Chapter;
+  } catch (error) {
+    console.error('Error fetching chapter:', error);
+    return null;
+  }
+};
+
 export const updateChapter = async (
   courseId: string,
   chapterId: string,
@@ -89,6 +110,31 @@ export const deleteChapter = async (
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to delete chapter',
+    };
+  }
+};
+
+export const reorderChapters = async (
+  courseId: string,
+  orderedChapterIds: string[]
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Update each chapter's order in parallel
+    await Promise.all(
+      orderedChapterIds.map((chapterId, index) => {
+        const chapterRef = doc(db, 'courses', courseId, 'chapters', chapterId);
+        return updateDoc(chapterRef, {
+          order: index,
+          updatedAt: serverTimestamp()
+        });
+      })
+    );
+    return { success: true };
+  } catch (error) {
+    console.error('Error reordering chapters:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to reorder chapters'
     };
   }
 };

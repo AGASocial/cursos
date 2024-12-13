@@ -1,11 +1,13 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, LogIn, UserPlus, LogOut, Shield } from 'lucide-react';
+import { FormattedMessage } from 'react-intl';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { signOut } from '../../lib/auth';
 import { isAdmin } from '../../lib/admin';
 import { CartDropdown } from '../cart/CartDropdown';
+import { LanguageSelector } from './LanguageSelector';
 
 export const Navbar = () => {
   const { user } = useAuth();
@@ -28,7 +30,9 @@ export const Navbar = () => {
               <div className="p-2 rounded-xl bg-indigo-50 transform transition-transform hover:scale-110">
                 <BookOpen className="h-7 w-7 text-indigo-600" />
               </div>
-              <span className="text-xl font-bold tracking-tight">AGA Online Courses</span>
+              <span className="text-xl font-bold tracking-tight">
+                <FormattedMessage id="app.title" />
+              </span>
             </Link>
           </div>
           
@@ -37,19 +41,19 @@ export const Navbar = () => {
               to="/courses" 
               className="text-gray-600 hover:text-indigo-600 font-medium transition-colors duration-200"
             >
-              Courses
+              <FormattedMessage id="nav.courses" />
             </Link>
+            <LanguageSelector />
             {user ? (
               <div className="flex items-center space-x-6">
                 {isAdmin(user.email!) && (
                   <Link to="/admin">
                     <Button 
                       variant="outline" 
-                      size="sm" 
                       className="flex items-center space-x-2 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition-colors duration-200"
                     >
                       <Shield className="h-4 w-4 text-indigo-600" />
-                      <span className="text-indigo-600">Admin</span>
+                      <span className="text-indigo-600"><FormattedMessage id="nav.admin" /></span>
                     </Button>
                   </Link>
                 )}
@@ -57,12 +61,11 @@ export const Navbar = () => {
                 <span className="text-gray-600 font-medium">{user.email}</span>
                 <Button 
                   variant="outline" 
-                  size="sm" 
                   className="flex items-center space-x-2 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors duration-200"
                   onClick={handleSignOut}
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
+                  <span><FormattedMessage id="nav.signout" /></span>
                 </Button>
               </div>
             ) : (
@@ -70,20 +73,18 @@ export const Navbar = () => {
                 <Link to="/login">
                   <Button 
                     variant="outline" 
-                    size="sm" 
                     className="flex items-center space-x-2 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition-colors duration-200"
                   >
                     <LogIn className="h-4 w-4 text-indigo-600" />
-                    <span className="text-indigo-600">Login</span>
+                    <span className="text-indigo-600"><FormattedMessage id="nav.login" /></span>
                   </Button>
                 </Link>
                 <Link to="/signup">
                   <Button 
-                    size="sm" 
                     className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow transition-all duration-200"
                   >
                     <UserPlus className="h-4 w-4" />
-                    <span>Sign Up</span>
+                    <span><FormattedMessage id="nav.signup" /></span>
                   </Button>
                 </Link>
               </>
