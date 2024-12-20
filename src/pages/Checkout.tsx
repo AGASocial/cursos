@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Mail, AlertCircle, Check, CreditCard } from 'lucide-react';
 import { FormattedMessage } from 'react-intl';
@@ -7,26 +7,33 @@ import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { createOrder } from '../lib/orders';
 import { loadStripe } from '@stripe/stripe-js';
+import { useDispatch } from 'react-redux';
+import { setAmount } from '../store/features/paymentSlice';
 
+// Make sure to call `loadStripe` outside of a component's render to avoid
+// recreating the `Stripe` object on every render.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 export const Checkout = () => {
   const navigate = useNavigate();
   const { state: cart, clearCart } = useCart();
   const { user } = useAuth();
+  const dispatch = useDispatch();
   const [purchaseComplete, setPurchaseComplete] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Redirect if cart is empty
-  if (cart.items.length === 0) {
-    navigate('/courses');
-    return null;
-  }
+  useEffect(() => {
+    // Handle redirects in useEffect
+    if (cart.items.length === 0) {
+      navigate('/courses');
+    } else if (!user) {
+      navigate('/login');
+    }
+  }, [cart.items.length, user, navigate]);
 
-  // Redirect if not logged in
-  if (!user) {
-    navigate('/login');
+  // If cart is empty or user is not logged in, render nothing while redirect happens
+  if (cart.items.length === 0 || !user) {
     return null;
   }
 
@@ -58,49 +65,43 @@ export const Checkout = () => {
   const handleStripeCheckout = async () => {
     setLoading(true);
     setError('');
-
+    
     try {
-      const stripe = await stripePromise;
-      if (!stripe) throw new Error('Stripe failed to load');
-
-      const response = await fetch('/.netlify/functions/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: cart.items.map(item => ({
-            price_data: {
-              currency: 'usd',
-              product_data: {
-                name: item.title,
-                description: `Curso: ${item.title}`,
-              },
-              unit_amount: Math.round(item.price * 100),
-            },
-            quantity: 1,
-          })),
-          userId: user.uid,
-          userEmail: user.email,
-        }),
-      });
-
-      const session = await response.json();
+      // Calculate total amount in cents
+      const totalAmount = cart.items.reduce((total, item) => total + (item.price * 100), 0);
       
-      const result = await stripe.redirectToCheckout({
-        sessionId: session.id,
-      });
-
-      if (result.error) {
-        setError(result.error.message || 'Error al procesar el pago');
-      }
-    } catch (err) {
-      setError('Error al iniciar el proceso de pago');
-      console.error('Stripe checkout error:', err);
+      // Store the amount in Redux
+      dispatch(setAmount(totalAmount));
+      
+      // Navigate to payment process
+      navigate('/payment/process');
+      
+    } catch (error) {
+      console.error('Error initiating checkout:', error);
+      setError('Failed to initiate checkout. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="text-red-500 mb-4">{error}</div>
+        <Button onClick={() => setError('')}>Try Again</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-16">
@@ -203,7 +204,7 @@ export const Checkout = () => {
                       <div className="flex items-center space-x-4">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
                           <svg className="h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .757-.629h7.815c2.604 0 4.429.715 5.445 2.135.463.659.77 1.466.883 2.385.117.961.006 2.203-.33 3.604l-.002.01v.01c-.401 2.053-1.23 3.83-2.45 5.238-1.203 1.389-2.736 2.373-4.558 2.931-1.772.547-3.78.547-5.989.547h-.767c-.612 0-1.137.437-1.24 1.037l-1.265 5.766a.642.642 0 0 1-.63.512H2.47z"/>
+                            <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .757-.629h7.815c2.604 0 4.429.715 5.445 2.135.463.659.77 1.466.883 2.385.117.961.006 2.203-.33 3.604l-.002.01v.01c-.401 2.053-1.23 3.83-2.45 5.238-1.203 1.389-2.736 2.373-4.558 2.931-1.772.547-3.78.547-5.989.547h-.767c-.612 0-1.137.437-1.24 1.037l-1.265 5.766a.642.642 0 0 1-.63.512H2.47z" />
                           </svg>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900">
