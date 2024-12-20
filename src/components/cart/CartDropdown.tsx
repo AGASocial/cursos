@@ -53,7 +53,7 @@ export const CartDropdown = () => {
                         <img
                           src={item.thumbnail}
                           alt={item.title}
-                          className="h-12 w-12 rounded object-cover"
+                          className="h-16 w-24 rounded-lg object-cover flex-shrink-0"
                         />
                         <div>
                           <h4 className="text-sm font-medium text-gray-900">{item.title}</h4>

@@ -1,22 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, LogIn, UserPlus, LogOut, Shield } from 'lucide-react';
+import { LogIn, UserPlus, Shield, BookOpen } from 'lucide-react';
 import { FormattedMessage } from 'react-intl';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
-import { signOut } from '../../lib/auth';
-import { isAdmin } from '../../lib/admin';
 import { CartDropdown } from '../cart/CartDropdown';
 import { LanguageSelector } from './LanguageSelector';
+import { ProfileDropdown } from './ProfileDropdown';
 
 export const Navbar = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
-  };
 
   return (
     <nav className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm backdrop-blur-sm bg-white/90">
@@ -43,13 +37,12 @@ export const Navbar = () => {
             >
               <FormattedMessage id="nav.courses" />
             </Link>
-            <LanguageSelector />
             {user ? (
               <div className="flex items-center space-x-6">
-                {isAdmin(user.email!) && (
+                {isAdmin && (
                   <Link to="/admin">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="flex items-center space-x-2 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition-colors duration-200"
                     >
                       <Shield className="h-4 w-4 text-indigo-600" />
@@ -58,15 +51,8 @@ export const Navbar = () => {
                   </Link>
                 )}
                 <CartDropdown />
-                <span className="text-gray-600 font-medium">{user.email}</span>
-                <Button 
-                  variant="outline" 
-                  className="flex items-center space-x-2 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors duration-200"
-                  onClick={handleSignOut}
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span><FormattedMessage id="nav.signout" /></span>
-                </Button>
+                <LanguageSelector />
+                <ProfileDropdown />
               </div>
             ) : (
               <>

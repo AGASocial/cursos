@@ -8,6 +8,7 @@ import { CourseDetails } from './pages/CourseDetails';
 import { ViewCourse } from './pages/ViewCourse';
 import { Register } from './pages/Register';
 import { Login } from './pages/Login';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { Admin } from './pages/Admin';
 import { AdminCourseForm } from './pages/AdminCourseForm';
 import { Checkout } from './pages/Checkout';
@@ -16,6 +17,10 @@ import { AuthProvider } from './contexts/AuthContext';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { CartProvider } from './contexts/CartContext';
 import { PrivateRoute } from './components/auth/PrivateRoute';
+import { PrivateAdminRoute } from './components/auth/PrivateAdminRoute';
+import { Profile } from './pages/Profile';
+import { Orders } from './pages/Orders';
+import { CourseParticipants } from './pages/CourseParticipants';
 
 export default function App() {
   return (
@@ -49,7 +54,7 @@ export default function App() {
               }
             />
             <Route
-              path="/courses/:courseId"
+              path="/courses/:courseSlug"
               element={
                 <div className="min-h-screen bg-gray-50 flex flex-col">
                   <Navbar />
@@ -61,7 +66,7 @@ export default function App() {
               }
             />
             <Route
-              path="/courses/:courseId/learn"
+              path="/courses/:courseSlug/learn"
               element={
                 <div className="min-h-screen bg-gray-50 flex flex-col">
                   <Navbar />
@@ -76,14 +81,17 @@ export default function App() {
             />
             <Route path="/signup" element={<Register />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/orders" element={<Orders />} />
             <Route
               path="/admin"
               element={
                 <div className="min-h-screen bg-gray-50 flex flex-col">
                   <Navbar />
-                  <div className="flex-grow">
+                  <PrivateAdminRoute>
                     <Admin />
-                  </div>
+                  </PrivateAdminRoute>
                   <Footer />
                 </div>
               }
@@ -93,9 +101,9 @@ export default function App() {
               element={
                 <div className="min-h-screen bg-gray-50 flex flex-col">
                   <Navbar />
-                  <div className="flex-grow">
+                  <PrivateAdminRoute>
                     <AdminCourseForm />
-                  </div>
+                  </PrivateAdminRoute>
                   <Footer />
                 </div>
               }
@@ -105,9 +113,21 @@ export default function App() {
               element={
                 <div className="min-h-screen bg-gray-50 flex flex-col">
                   <Navbar />
-                  <div className="flex-grow">
+                  <PrivateAdminRoute>
                     <AdminCourseForm />
-                  </div>
+                  </PrivateAdminRoute>
+                  <Footer />
+                </div>
+              }
+            />
+            <Route
+              path="/admin/courses/:courseId/participants"
+              element={
+                <div className="min-h-screen bg-gray-50 flex flex-col">
+                  <Navbar />
+                  <PrivateAdminRoute>
+                    <CourseParticipants />
+                  </PrivateAdminRoute>
                   <Footer />
                 </div>
               }
@@ -117,9 +137,9 @@ export default function App() {
               element={
                 <div className="min-h-screen bg-gray-50 flex flex-col">
                   <Navbar />
-                  <div className="flex-grow">
+                  <PrivateAdminRoute>
                     <EditChapter />
-                  </div>
+                  </PrivateAdminRoute>
                   <Footer />
                 </div>
               }

@@ -1,0 +1,83 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAcademyAdmin(academyId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/agaacademies/$(academyId)) &&
+        get(/databases/$(database)/documents/agaacademies/$(academyId)).data.admins.hasAny([request.auth.uid]);
+    }
+
+    function isEnrolled(courseId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.enrolledCourses.hasAny([courseId]);
+    }
+
+    // Academy validation functions
+    function isValidAcademyName(name) {
+      return name.matches('^[a-zA-Z0-9-_]+$');
+    }
+
+    function isAcademyCreator(academyId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/agaacademies/$(academyId)).data.creatorId == request.auth.uid;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Academies collection
+    match /agaacademies/{academyId} {
+      // Allow reading the academy document structure
+      allow get, list: if true;
+
+      // Only admins can write to academy documents
+      allow create, update, delete: if isAcademyAdmin(academyId);
+
+      // Courses subcollection
+      match /courses/{courseId} {
+        allow read: if 
+          // Anyone can read published courses
+          (resource != null && resource.data.status == 'published') ||
+          // Admins can read all courses (draft and published)
+          isAcademyAdmin(academyId);
+
+        // Only admins can create/delete courses
+        allow create, delete: if isAcademyAdmin(academyId);
+
+        // Allow updates based on specific conditions
+        allow update: if isAcademyAdmin(academyId);
+
+        // Chapters subcollection
+        match /chapters/{chapterId} {
+          allow read: if 
+            // Admins can read all chapters
+            isAcademyAdmin(academyId) ||
+            // Only enrolled users can read chapters
+            isEnrolled(courseId);
+
+          // Only admins can write chapters
+          allow write: if isAcademyAdmin(academyId);
+        }
+      }
+
+      // Orders collection
+      match /orders/{orderId} {
+        allow read: if isAuthenticated() && 
+          (resource.data.userId == request.auth.uid || isAcademyAdmin(academyId));
+        allow create: if isAuthenticated() && 
+          request.resource.data.userId == request.auth.uid;
+        allow update: if isAcademyAdmin(academyId);
+      }
+    }
+  }
+}

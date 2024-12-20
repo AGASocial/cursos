@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 
 interface CourseCardProps {
   id: string;
+  slug: string;
   title: string;
   instructor: string;
   thumbnail: string;
@@ -17,6 +18,7 @@ interface CourseCardProps {
 
 export const CourseCard: React.FC<CourseCardProps> = ({
   id,
+  slug,
   title,
   instructor,
   thumbnail,
@@ -27,7 +29,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 }) => {
   return (
     <div className="group overflow-hidden rounded-lg border bg-white shadow-sm transition-all hover:shadow-md">
-      <Link to={isEnrolled ? `/courses/${id}/learn` : `/courses/${id}`}>
+      <Link to={isEnrolled ? `/courses/${slug}/learn` : `/courses/${slug}`}>
         <div className="aspect-video w-full overflow-hidden">
           <img
             src={thumbnail}
@@ -37,7 +39,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         </div>
       </Link>
       <div className="p-4">
-        <Link to={isEnrolled ? `/courses/${id}/learn` : `/courses/${id}`}>
+        <Link to={isEnrolled ? `/courses/${slug}/learn` : `/courses/${slug}`}>
           <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600">{title}</h3>
           <p className="mt-1 text-sm text-gray-500">por {instructor}</p>
         </Link>
@@ -54,7 +56,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             </div>
           </div>
           {isEnrolled ? (
-            <Link to={`/courses/${id}/learn`}>
+            <Link to={`/courses/${slug}/learn`}>
               <Button className="flex items-center space-x-1">
                 <Play className="h-4 w-4" />
                 <span><FormattedMessage id="course.view" /></span>

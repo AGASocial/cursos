@@ -22,14 +22,19 @@ export const Courses = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [fetchedCourses, userData] = await Promise.all([
-        getCourses(),
-        user ? getUserData(user.uid) : null,
-      ]);
+      try {
+        const [fetchedCourses, userData] = await Promise.all([
+          getCourses(), // This now only returns published courses
+          user ? getUserData(user.uid) : null,
+        ]);
       
-      setCourses(fetchedCourses);
-      setEnrolledCourses(userData?.enrolledCourses || []);
-      setLoading(false);
+        setCourses(fetchedCourses);
+        setEnrolledCourses(userData?.enrolledCourses || []);
+      } catch (error) {
+        console.error('Error fetching courses:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -63,14 +68,14 @@ export const Courses = () => {
         <div className="mb-12 space-y-6 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-            <Input
-              type="text"
+              <Input
+                type="text"
               placeholder={intl.formatMessage({ id: 'courses.search.placeholder' })}
               className="pl-12 h-12 text-lg rounded-xl border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
 
           <div className="flex flex-wrap gap-8">
             <div className="space-y-3 flex-1">
@@ -78,7 +83,7 @@ export const Courses = () => {
                 <FormattedMessage id="courses.filter.category" />
               </label>
               <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
+              {categories.map((category) => (
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
@@ -90,7 +95,7 @@ export const Courses = () => {
                   >
                     <FormattedMessage id={category === 'all' ? 'courses.filter.all' : `admin.courses.form.category.${category}`} />
                   </button>
-                ))}
+              ))}
               </div>
             </div>
 
@@ -99,7 +104,7 @@ export const Courses = () => {
                 <FormattedMessage id="courses.filter.level" />
               </label>
               <div className="flex flex-wrap gap-2">
-                {levels.map((level) => (
+              {levels.map((level) => (
                   <button
                     key={level}
                     onClick={() => setSelectedLevel(level)}
@@ -111,7 +116,7 @@ export const Courses = () => {
                   >
                     <FormattedMessage id={level === 'all' ? 'courses.filter.all' : `admin.courses.form.level.${level}`} />
                   </button>
-                ))}
+              ))}
               </div>
             </div>
           </div>
@@ -128,7 +133,14 @@ export const Courses = () => {
             {filteredCourses.map((course) => (
               <CourseCard
                 key={course.id}
-                {...course}
+                id={course.id}
+                slug={course.slug}
+                title={course.title}
+                instructor={course.instructor}
+                thumbnail={course.thumbnail}
+                duration={course.duration}
+                enrolledCount={course.enrolledCount}
+                price={course.price}
                 isEnrolled={enrolledCourses.includes(course.id)}
               />
             ))}

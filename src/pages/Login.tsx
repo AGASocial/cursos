@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { FormattedMessage } from 'react-intl';
 import { LogIn, ArrowLeft } from 'lucide-react';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { signIn } from '../lib/auth';
+import { getUserData } from '../lib/users';
+import { useAuth } from '../contexts/AuthContext';
 
 export const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || '/';
+  const { setIsAdmin } = useAuth();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,12 +26,16 @@ export const Login = () => {
     setError('');
     setLoading(true);
 
-    const { error } = await signIn(formData.email, formData.password);
+    const { user, isAdmin, error } = await signIn(formData.email, formData.password);
     
     if (error) {
       setError('Invalid email or password');
       setLoading(false);
       return;
+    }
+    
+    if (user) {
+      setIsAdmin(isAdmin);
     }
 
     // Navigate to the page they tried to visit or home
@@ -53,17 +61,17 @@ export const Login = () => {
                 <LogIn className="h-8 w-8 text-indigo-600" />
               </div>
               <h2 className="mt-6 text-3xl font-bold tracking-tight text-gray-900">
-                Welcome back
+                <FormattedMessage id="auth.login.title" />
               </h2>
               <p className="mt-2 text-base text-gray-600">
-                Sign in to continue your learning journey
+                <FormattedMessage id="auth.login.subtitle" />
               </p>
             </div>
 
             <form className="mt-10 space-y-6" onSubmit={handleSubmit}>
               <div className="space-y-6">
                 <Input
-                  label="Email address"
+                  label={<FormattedMessage id="auth.login.email" />}
                   type="email"
                   required
                   value={formData.email}
@@ -72,7 +80,7 @@ export const Login = () => {
                 />
 
                 <Input
-                  label="Password"
+                  label={<FormattedMessage id="auth.login.password" />}
                   type="password"
                   required
                   value={formData.password}
@@ -91,12 +99,12 @@ export const Login = () => {
                     className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 transition-colors duration-200"
                   />
                   <label htmlFor="remember-me" className="ml-3 block text-sm font-medium text-gray-700">
-                    Remember me
+                    <FormattedMessage id="auth.login.remember" />
                   </label>
                 </div>
                 <div>
                   <Link to="/forgot-password" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 transition-colors duration-200">
-                    Forgot password?
+                    <FormattedMessage id="auth.login.forgot" />
                   </Link>
                 </div>
               </div>
@@ -109,18 +117,18 @@ export const Login = () => {
                 {loading ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin" />
-                    <span>Signing in...</span>
+                    <span><FormattedMessage id="auth.login.signing" /></span>
                   </div>
                 ) : (
-                  'Sign in'
+                  <FormattedMessage id="auth.login.button" />
                 )}
               </Button>
             </form>
 
             <p className="mt-6 text-center text-sm text-gray-600">
-              Don't have an account?{' '}
+              <FormattedMessage id="auth.login.signup.prompt" />{' '}
               <Link to="/signup" className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors duration-200">
-                Sign up
+                <FormattedMessage id="auth.login.signup.link" />
               </Link>
             </p>
           </div>

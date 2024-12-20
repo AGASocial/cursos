@@ -4,14 +4,14 @@ import { ChevronDown, ChevronRight, BookOpen, Menu } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { markdownComponents, processYouTubeEmbeds } from '../lib/markdown';
-import { getCourseById, type Course } from '../lib/courses';
+import { getCourseById, getCourseBySlug, type Course } from '../lib/courses';
 import { getCourseChapters, type Chapter } from '../lib/chapters';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserData } from '../lib/users';
 import { Navbar } from '../components/layout/Navbar';
 
 export const ViewCourse = () => {
-  const { courseId } = useParams<{ courseId: string }>();
+  const { courseSlug } = useParams<{ courseSlug: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
@@ -22,29 +22,44 @@ export const ViewCourse = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!courseId || !user) return;
-
-      // Check if user has access to this course
-      const userData = await getUserData(user.uid);
-      if (!userData?.enrolledCourses.includes(courseId)) {
+      if (!courseSlug || !user) {
         navigate('/courses');
         return;
       }
 
-      // Fetch course and chapters
-      const [courseData, chaptersData] = await Promise.all([
-        getCourseById(courseId),
-        getCourseChapters(courseId)
-      ]);
+      try {
+        // First get the course by slug to get its ID
+        const courseData = await getCourseBySlug(courseSlug);
+        if (!courseData) {
+          console.error('Course not found:', courseSlug);
+          navigate('/courses');
+          return;
+        }
 
-      setCourse(courseData);
-      setChapters(chaptersData);
-      setSelectedChapter(chaptersData[0] || null);
-      setLoading(false);
+        // Check if user has access to this course
+        const userData = await getUserData(user.uid);
+        if (!userData?.enrolledCourses?.includes(courseData.id)) {
+          console.error('User not enrolled in course:', courseData.id);
+          navigate(`/courses/${courseSlug}`);
+          return;
+        }
+
+        // Fetch chapters using the course ID
+        const chaptersData = await getCourseChapters(courseData.id);
+
+        setCourse(courseData);
+        setChapters(chaptersData);
+        setSelectedChapter(chaptersData[0] || null);
+      } catch (error) {
+        console.error('Error fetching course data:', error);
+        navigate('/courses');
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
-  }, [courseId, user, navigate]);
+  }, [courseSlug, user, navigate]);
 
   if (loading) {
     return (
@@ -59,7 +74,7 @@ export const ViewCourse = () => {
       <div className="flex-grow flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900">Course not found</h2>
-          <p className="mt-2 text-gray-600">The course you're looking for doesn't exist.</p>
+          <p className="mt-2 text-gray-600">The course you're looking for doesn't exist or you don't have access.</p>
         </div>
       </div>
     );

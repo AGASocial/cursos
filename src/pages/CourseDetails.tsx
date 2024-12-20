@@ -6,12 +6,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { markdownComponents, processYouTubeEmbeds } from '../lib/markdown';
 import { Button } from '../components/ui/Button';
-import { getCourseById, type Course } from '../lib/courses';
+import { getCourseBySlug, type Course } from '../lib/courses';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import { getUserData } from '../lib/users';
 
 export const CourseDetails = () => {
-  const { courseId } = useParams<{ courseId: string }>();
+  const { courseSlug } = useParams<{ courseSlug: string }>();
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,14 +21,36 @@ export const CourseDetails = () => {
 
   useEffect(() => {
     const fetchCourse = async () => {
-      if (!courseId) return;
-      const courseData = await getCourseById(courseId);
-      setCourse(courseData);
-      setLoading(false);
+      if (!courseSlug) return;
+      
+      try {
+        const courseData = await getCourseBySlug(courseSlug);
+        if (!courseData) {
+          console.error('Course not found:', courseSlug);
+          navigate('/courses');
+          return;
+        }
+
+        // If user is logged in, check if they're enrolled
+        if (user) {
+          const userData = await getUserData(user.uid);
+          if (userData?.enrolledCourses?.includes(courseData.id)) {
+            navigate(`/courses/${courseSlug}/learn`);
+            return;
+          }
+        }
+
+        setCourse(courseData);
+      } catch (error) {
+        console.error('Error fetching course:', error);
+        navigate('/courses');
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchCourse();
-  }, [courseId]);
+  }, [courseSlug, user, navigate]);
 
   const isInCart = course && cart.items.some(item => item.id === course.id);
 

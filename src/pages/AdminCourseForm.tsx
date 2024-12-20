@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
-import { Shield, Upload, ArrowLeft, Plus, Pencil, Trash2, BookOpen, LayoutDashboard, GripVertical } from 'lucide-react';
+import { Shield, Upload, ArrowLeft, Plus, Pencil, Trash2, BookOpen, LayoutDashboard, GripVertical, FileDown } from 'lucide-react';
 import { FormattedMessage } from 'react-intl';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { createCourse, updateCourse } from '../lib/courseManagement';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { MarkdownEditor } from '../components/editor/MarkdownEditor';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdmin, createCourse, updateCourse } from '../lib/admin';
+import { createChapter, updateChapter, getChapter, deleteChapter } from '../lib/chapters';
 import { getCourseById } from '../lib/courses';
-import { getCourseChapters, reorderChapters, type Chapter } from '../lib/chapters';
+import { getCourseChapters, reorderChapters, type Chapter, exportChapter, importChapter } from '../lib/chapters';
+import { Tooltip } from '../components/ui/Tooltip';
 
 const categories = ['programming', 'design', 'business', 'marketing'] as const;
 const levels = ['beginner', 'intermediate', 'advanced'] as const;
@@ -16,7 +19,7 @@ const levels = ['beginner', 'intermediate', 'advanced'] as const;
 type TabType = 'info' | 'chapters';
 
 export const AdminCourseForm = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { courseId } = useParams();
   const { state } = useLocation();
@@ -40,6 +43,10 @@ export const AdminCourseForm = () => {
     aboutCourse: '',
     learningObjectives: '',
   });
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [chapterToDelete, setChapterToDelete] = useState<Chapter | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,7 +79,7 @@ export const AdminCourseForm = () => {
   }, [courseId, isEditMode]);
 
   // Redirect if not admin
-  if (!user || !isAdmin(user.email!)) {
+  if (!user || !isAdmin) {
     navigate('/');
     return null;
   }
@@ -151,6 +158,55 @@ export const AdminCourseForm = () => {
 
   const handleDragEnd = () => {
     setReordering(false);
+  };
+
+  const handleImportChapter = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !courseId) return;
+
+    setImportLoading(true);
+    const { success, error } = await importChapter(courseId, file);
+    
+    if (success) {
+      const updatedChapters = await getCourseChapters(courseId);
+      setChapters(updatedChapters);
+    } else {
+      console.error('Failed to import chapter:', error);
+    }
+    
+    setImportLoading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteChapter = async (chapter: Chapter) => {
+    setChapterToDelete(chapter);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!chapterToDelete || !courseId) return;
+    
+    setDeleteLoading(true);
+    
+    try {
+      const { success, error } = await deleteChapter(courseId, chapterToDelete.id);
+      if (success) {
+        const updatedChapters = await getCourseChapters(courseId);
+        setChapters(updatedChapters);
+      } else {
+        console.error('Error deleting chapter:', error);
+      }
+      setChapterToDelete(null);
+    } catch (err) {
+      console.error('Error during chapter deletion:', err);
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   return (
@@ -413,12 +469,36 @@ export const AdminCourseForm = () => {
                 <h2 className="text-xl font-semibold text-gray-900">
                   <FormattedMessage id="admin.courses.chapters.title" />
                 </h2>
-                <Link to={`/admin/courses/${courseId}/chapters`}>
-                  <Button className="flex items-center space-x-2">
-                    <Plus className="h-4 w-4" />
-                    <span><FormattedMessage id="admin.chapters.new" /></span>
+                <div className="flex space-x-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={handleImportChapter}
+                    disabled={importLoading}
+                    className="flex items-center space-x-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
+                  >
+                    <Upload className="h-4 w-4" />
+                    <span>
+                      {importLoading ? (
+                        <FormattedMessage id="admin.orders.processing" />
+                      ) : (
+                        <FormattedMessage id="admin.chapters.tooltip.import" />
+                      )}
+                    </span>
                   </Button>
-                </Link>
+                  <Link to={`/admin/courses/${courseId}/chapters`}>
+                    <Button className="flex items-center space-x-2">
+                      <Plus className="h-4 w-4" />
+                      <span><FormattedMessage id="admin.chapters.new" /></span>
+                    </Button>
+                  </Link>
+                </div>
               </div>
 
               {chapters.length > 0 ? (
@@ -446,16 +526,28 @@ export const AdminCourseForm = () => {
                       <div className="flex space-x-3">
                         <Link to={`/admin/courses/${courseId}/chapters/${chapter.id}`}>
                           <Button variant="outline" className="flex items-center space-x-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300">
-                            <Pencil className="h-4 w-4" />
-                            <span><FormattedMessage id="admin.courses.edit" /></span>
+                            <Tooltip content={<FormattedMessage id="admin.courses.tooltip.edit" />}>
+                              <Pencil className="h-4 w-4" />
+                            </Tooltip>
                           </Button>
                         </Link>
                         <Button
                           variant="outline"
+                          onClick={() => exportChapter(chapter)}
+                          className="flex items-center space-x-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
+                        >
+                          <Tooltip content={<FormattedMessage id="admin.chapters.tooltip.export" />}>
+                            <FileDown className="h-4 w-4" />
+                          </Tooltip>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDeleteChapter(chapter)}
                           className="flex items-center space-x-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
                         >
-                          <Trash2 className="h-4 w-4" />
-                          <span><FormattedMessage id="admin.courses.delete" /></span>
+                          <Tooltip content={<FormattedMessage id="admin.courses.tooltip.delete" />}>
+                            <Trash2 className="h-4 w-4" />
+                          </Tooltip>
                         </Button>
                       </div>
                     </div>
@@ -482,6 +574,19 @@ export const AdminCourseForm = () => {
           )}
         </div>
       </div>
+      <ConfirmationModal
+        isOpen={chapterToDelete !== null}
+        onClose={() => setChapterToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title={<FormattedMessage id="admin.chapters.delete.title" />}
+        message={<FormattedMessage 
+          id="admin.chapters.delete.message" 
+          values={{ title: chapterToDelete?.title }}
+        />}
+        confirmText={<FormattedMessage id="admin.chapters.delete" />}
+        cancelText={<FormattedMessage id="admin.chapters.delete.cancel" />}
+        loading={deleteLoading}
+      />
     </div>
   );
 };

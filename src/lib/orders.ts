@@ -1,8 +1,11 @@
-import { collection, addDoc, getDocs, query, where, serverTimestamp, updateDoc, doc, orderBy, getDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc, updateDoc, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Course } from './courses';
 import { addCourseToUser } from './users';
 import { incrementEnrolledCount } from './courses';
+
+const ACADEMIES_COLLECTION = import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || 'agaacademies';
+const ACADEMY = import.meta.env.VITE_AGA_ACADEMY;
 
 export interface Order {
   id: string;
@@ -37,8 +40,8 @@ export const createOrder = async (
       status: 'pending',
       createdAt: serverTimestamp()
     };
-
-    const orderRef = await addDoc(collection(db, 'orders'), orderData);
+    const academyId = ACADEMY;
+    const orderRef = await addDoc(collection(db, ACADEMIES_COLLECTION, academyId, 'orders'), orderData);
     return { success: true, orderId: orderRef.id };
   } catch (error) {
     console.error('Error creating order:', error);
@@ -51,7 +54,8 @@ export const createOrder = async (
 
 export const getUserOrders = async (userId: string): Promise<Order[]> => {
   try {
-    const ordersRef = collection(db, 'orders');
+    const academyId = ACADEMY;
+    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, 'orders');
     const q = query(ordersRef, where('userId', '==', userId));
     const snapshot = await getDocs(q);
     
@@ -68,7 +72,8 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
 
 export const getAllOrders = async (): Promise<Order[]> => {
   try {
-    const ordersRef = collection(db, 'orders');
+    const academyId = ACADEMY;
+    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, 'orders');
     const q = query(ordersRef, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     
@@ -85,7 +90,8 @@ export const getAllOrders = async (): Promise<Order[]> => {
 
 export const approveOrder = async (orderId: string): Promise<{ success: boolean; error?: string }> => {
   try {
-    const orderRef = doc(db, 'orders', orderId);
+    const academyId = ACADEMY;
+    const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', orderId);
     const orderDoc = await getDoc(orderRef);
     
     if (!orderDoc.exists()) {
@@ -95,32 +101,37 @@ export const approveOrder = async (orderId: string): Promise<{ success: boolean;
     const orderData = orderDoc.data() as Order;
 
     // Add each course to the user's enrolledCourses and increment enrolled count
+    const updatePromises = [];
+
     for (const item of orderData.items) {
-      const [addSuccess, incrementSuccess] = await Promise.all([
+      updatePromises.push(
         addCourseToUser(orderData.userId, item.courseId),
         incrementEnrolledCount(item.courseId)
-      ]);
-
-      if (!addSuccess.success) {
-        return { success: false, error: `Failed to add course ${item.courseId}: ${addSuccess.error}` };
-      }
-
-      if (!incrementSuccess) {
-        console.error(`Failed to increment enrolled count for course ${item.courseId}`);
-      }
+      );
     }
 
-    // Update order status to completed
-    await updateDoc(orderRef, {
-      status: 'completed'
-    });
+    try {
+      await Promise.all(updatePromises);
+      
+      // Update order status to completed
+      await updateDoc(orderRef, {
+        status: 'completed',
+        updatedAt: serverTimestamp()
+      });
 
-    return { success: true };
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating user courses:', error);
+      return {
+        success: false,
+        error: 'admin.error.updateFailed'
+      };
+    }
   } catch (error) {
     console.error('Error approving order:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to approve order'
+      error: 'Failed to approve order. Please try again.'
     };
   }
 };

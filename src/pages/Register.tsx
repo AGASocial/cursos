@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { FormattedMessage } from 'react-intl';
 import { UserPlus, ArrowLeft } from 'lucide-react';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -57,7 +58,7 @@ export const Register = () => {
               className="group mb-8 inline-flex items-center text-sm text-gray-500 hover:text-indigo-600 transition-colors duration-200"
             >
               <ArrowLeft className="mr-2 h-4 w-4 transform transition-transform group-hover:-translate-x-1" />
-              Back to home
+              <FormattedMessage id="auth.register.back" />
             </Link>
             
             <div className="text-center">
@@ -65,17 +66,17 @@ export const Register = () => {
                 <UserPlus className="h-8 w-8 text-indigo-600" />
               </div>
               <h2 className="mt-6 text-3xl font-bold tracking-tight text-gray-900">
-                Create your account
+                <FormattedMessage id="auth.register.title" />
               </h2>
               <p className="mt-2 text-base text-gray-600">
-                Join thousands of students learning from the best instructors
+                <FormattedMessage id="auth.register.subtitle" />
               </p>
             </div>
 
             <form className="mt-10 space-y-6" onSubmit={handleSubmit}>
               <div className="space-y-6">
                 <Input
-                  label="Email address"
+                  label={<FormattedMessage id="auth.register.email" />}
                   type="email"
                   required
                   value={formData.email}
@@ -84,7 +85,7 @@ export const Register = () => {
                 />
 
                 <Input
-                  label="Password"
+                  label={<FormattedMessage id="auth.register.password" />}
                   type="password"
                   required
                   showPasswordToggle
@@ -94,7 +95,7 @@ export const Register = () => {
                 />
 
                 <Input
-                  label="Confirm Password"
+                  label={<FormattedMessage id="auth.register.confirmPassword" />}
                   type="password"
                   required
                   showPasswordToggle
@@ -113,18 +114,18 @@ export const Register = () => {
                 {loading ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin" />
-                    <span>Creating account...</span>
+                    <span><FormattedMessage id="auth.register.creating" /></span>
                   </div>
                 ) : (
-                  'Create account'
+                  <FormattedMessage id="auth.register.button" />
                 )}
               </Button>
             </form>
 
             <p className="mt-6 text-center text-sm text-gray-600">
-              Already have an account?{' '}
+              <FormattedMessage id="auth.register.login.prompt" />{' '}
               <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors duration-200">
-                Sign in
+                <FormattedMessage id="auth.register.login.link" />
               </Link>
             </p>
           </div>
