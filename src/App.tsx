@@ -158,6 +158,63 @@ export default function App() {
                 </div>
               }
             />
+            {/* Payment Routes */}
+            <Route
+                path="/payment/process"
+                element={
+                  <div className="min-h-screen bg-gray-50 flex flex-col">
+                    <Navbar />
+                    <div className="flex-grow">
+                      <PrivateRoute>
+                        <PaymentProcess />
+                      </PrivateRoute>
+                    </div>
+                    <Footer />
+                  </div>
+                }
+              />
+              <Route
+                path="/return"
+                element={
+                  <div className="min-h-screen bg-gray-50 flex flex-col">
+                    <Navbar />
+                    <div className="flex-grow">
+                      <PrivateRoute>
+                        <Return />
+                      </PrivateRoute>
+                    </div>
+                    <Footer />
+                  </div>
+                }
+              />
+              <Route
+                path="/payment/success/:courseId"
+                element={
+                  <div className="min-h-screen bg-gray-50 flex flex-col">
+                    <Navbar />
+                    <div className="flex-grow">
+                      <PrivateRoute>
+                        <PaymentSuccess />
+                      </PrivateRoute>
+                    </div>
+                    <Footer />
+                  </div>
+                }
+              />
+              <Route
+                path="/payment/failed/:courseId"
+                element={
+                  <div className="min-h-screen bg-gray-50 flex flex-col">
+                    <Navbar />
+                    <div className="flex-grow">
+                      <PrivateRoute>
+                        <PaymentFailed />
+                      </PrivateRoute>
+                    </div>
+                    <Footer />
+                  </div>
+                }
+              />
           </Routes>
         </CartProvider>
         </AuthProvider>
