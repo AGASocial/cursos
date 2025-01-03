@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Clock, DollarSign, RefreshCw, Search, Filter } from 'lucide-react';
+import { Check, Clock, DollarSign, RefreshCw, Search, Filter, X } from 'lucide-react';
 import { FormattedMessage } from 'react-intl';
 import { Button } from '../ui/Button';
+import { Tooltip } from '../ui/Tooltip';
 import { Input } from '../ui/Input';
-import { getAllOrders, approveOrder, type Order } from '../../lib/orders';
+import { getAllOrders, approveOrder, rejectOrder, type Order } from '../../lib/orders';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 export const AdminOrdersList = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingOrder, setProcessingOrder] = useState<string | null>(null);
+  const [orderToReject, setOrderToReject] = useState<Order | null>(null);
+  const [rejectLoading, setRejectLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -35,6 +39,24 @@ export const AdminOrdersList = () => {
       await fetchOrders();
     }
     setProcessingOrder(null);
+  };
+
+  const handleRejectClick = (order: Order) => {
+    setOrderToReject(order);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!orderToReject) return;
+    
+    setRejectLoading(true);
+    const { success } = await rejectOrder(orderToReject.id);
+    
+    if (success) {
+      await fetchOrders();
+    }
+    
+    setRejectLoading(false);
+    setOrderToReject(null);
   };
 
   if (loading) {
@@ -232,34 +254,57 @@ export const AdminOrdersList = () => {
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           order.status === 'completed'
                             ? 'bg-green-100 text-green-800'
+                            : order.status === 'rejected'
+                            ? 'bg-red-100 text-red-800'
                             : 'bg-yellow-100 text-yellow-800'
                         }`}
                       >
                         {order.status === 'completed' ? (
                           <>
                             <Check className="mr-1 h-3 w-3" />
-                            <FormattedMessage id="admin.orders.completed" />
+                            <span><FormattedMessage id="admin.orders.completed" /></span>
+                          </>
+                        ) : order.status === 'rejected' ? (
+                          <>
+                            <X className="mr-1 h-3 w-3" />
+                            <span><FormattedMessage id="admin.orders.rejected" /></span>
                           </>
                         ) : (
                           <>
                             <Clock className="mr-1 h-3 w-3" />
-                            <FormattedMessage id="admin.orders.pending" />
+                            <span><FormattedMessage id="admin.orders.pending" /></span>
                           </>
                         )}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                       {order.status === 'pending' && (
-                        <Button
-                          onClick={() => handleApproveOrder(order.id)}
-                          disabled={processingOrder === order.id}
-                        >
-                          {processingOrder === order.id ? (
-                            <FormattedMessage id="admin.orders.processing" />
-                          ) : (
-                            <FormattedMessage id="admin.orders.approve" />
-                          )}
-                        </Button>
+                        <div className="flex justify-end space-x-2">
+                          <Tooltip content={<FormattedMessage id="admin.orders.tooltip.approve" />}>
+                            <Button 
+                              size="sm"
+                              onClick={() => handleApproveOrder(order.id)}
+                              disabled={processingOrder === order.id}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              {processingOrder === order.id ? (
+                                <FormattedMessage id="admin.orders.processing" />
+                              ) : (
+                                <Check className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </Tooltip>
+                          <Tooltip content={<FormattedMessage id="admin.orders.tooltip.reject" />}>
+                            <Button
+                              size="sm"
+                              onClick={() => handleRejectClick(order)}
+                              variant="outline"
+                              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </Tooltip>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -269,6 +314,16 @@ export const AdminOrdersList = () => {
           </div>
         )}
       </div>
+      <ConfirmationModal
+        isOpen={orderToReject !== null}
+        onClose={() => setOrderToReject(null)}
+        onConfirm={handleConfirmReject}
+        title={<FormattedMessage id="admin.orders.reject.title" />}
+        message={<FormattedMessage id="admin.orders.reject.message" />}
+        confirmText={<FormattedMessage id="admin.orders.reject" />}
+        cancelText={<FormattedMessage id="admin.orders.reject.cancel" />}
+        loading={rejectLoading}
+      />
     </div>
   );
 };

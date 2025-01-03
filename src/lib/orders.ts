@@ -17,7 +17,7 @@ export interface Order {
     price: number;
   }[];
   total: number;
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'rejected';
   createdAt: Date;
 }
 
@@ -132,6 +132,26 @@ export const approveOrder = async (orderId: string): Promise<{ success: boolean;
     return {
       success: false,
       error: 'Failed to approve order. Please try again.'
+    };
+  }
+};
+
+export const rejectOrder = async (orderId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const academyId = ACADEMY;
+    const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', orderId);
+    
+    await updateDoc(orderRef, {
+      status: 'rejected',
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error rejecting order:', error);
+    return {
+      success: false,
+      error: 'Failed to reject order. Please try again.'
     };
   }
 };
