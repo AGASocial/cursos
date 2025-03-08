@@ -1,90 +1,58 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-import { FormattedMessage } from 'react-intl';
-import { loadStripe } from '@stripe/stripe-js';
-import { StripeCheckoutForm } from '../../components/payments/StripeCheckoutForm';
-import { useSelector } from 'react-redux';
-import { selectAmount } from '../../store/features/paymentSlice';
-import type { RootState } from '../../store/store';
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+import { useEffect, useState, useRef } from "react";
+// import { useParams } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+// import { FormattedMessage } from "react-intl";
+// import { loadStripe } from "@stripe/stripe-js";
+// import { StripeCheckoutForm } from "../../components/payments/StripeCheckoutForm";
+import { useSelector } from "react-redux";
+import { selectAmount, selectCourseName } from "../../store/features/paymentSlice";
+import type { RootState } from "../../store/store";
 
 export const PaymentProcess = () => {
-  const { courseId } = useParams();
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const amount = useSelector((state: RootState) => selectAmount(state));
+  const courseName = useSelector((state: RootState) => selectCourseName(state));
+  const [courseIds, setCourseIds] = useState<string[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
+    // Prevent multiple executions
+    if (initializedRef.current) {
+      return;
+    }
+    initializedRef.current = true;
 
-    const initializePayment = async () => {
-      if (!amount) {
-        setError('No amount specified for payment');
-        setLoading(false);
+    // Retrieve course IDs from localStorage
+    const storedCourseIds = localStorage.getItem('purchasedCourseIds');
+    if (storedCourseIds) {
+      try {
+        setCourseIds(JSON.parse(storedCourseIds));
+      } catch (error) {
+        console.error('Error parsing course IDs from localStorage:', error);
+        setError('Error al procesar la información del curso');
         return;
       }
+    } else {
+      console.warn('No course IDs found in localStorage');
+    }
 
-      console.log('Initializing payment with amount:', amount);
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/Payments/create-checkout-session`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            amount,
-            currency: "USD",
-            returnUrl: `${window.location.origin}/return?session_id={CHECKOUT_SESSION_ID}`
-          }),
-        });
+    // Check if amount is available
+    if (!amount) {
+      setError("No se ha especificado un monto para el pago");
+      return;
+    }
 
-        if (!mounted) return;
+    // Check if course name is available
+    if (!courseName) {
+      console.warn("No se ha especificado un nombre de curso, usando el valor predeterminado");
+    }
 
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error response:', errorText);
-          throw new Error(`Failed to initialize payment: ${errorText}`);
-        }
-
-        const data = await response.json();
-        console.log('Received data:', data);
-        
-        if (!data.clientSecret) {
-          throw new Error('No client secret received from the server');
-        }
-
-        setClientSecret(data.clientSecret);
-      } catch (err) {
-        console.error('Payment initialization error:', err);
-        if (mounted) {
-          setError(err instanceof Error ? err.message : 'An error occurred');
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    initializePayment();
-
-    return () => {
-      mounted = false;
-    };
-  }, []); // Only run once on mount
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    );
-  }
+    // Submit the form automatically
+    if (formRef.current) {
+      formRef.current.submit();
+    }
+  }, [amount, courseName]);
 
   if (error) {
     return (
@@ -94,25 +62,39 @@ export const PaymentProcess = () => {
     );
   }
 
-  if (!clientSecret) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-red-500">No client secret received. Please try again.</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white shadow-lg rounded-lg p-6">
-          <h1 className="text-2xl font-bold mb-6 text-center">
-            <FormattedMessage id="payment.complete" defaultMessage="Complete Your Payment" />
-          </h1>
-          
-          <StripeCheckoutForm clientSecret={clientSecret} />
-        </div>
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <Loader2 className="w-8 h-8 animate-spin mb-4" />
+      <span className="mb-8">Redirigiendo a la página de pago...</span>
+
+      {/* Hidden form that will be submitted automatically */}
+      <form
+        ref={formRef}
+        method="POST"
+        action={`${
+          import.meta.env.VITE_API_URL
+        }/Payments/create-checkout-session-redirect`}
+        className="hidden"
+      >
+        <input type="hidden" name="amount" value={amount} />
+        <input type="hidden" name="currency" value="USD" />
+        <input
+          type="hidden"
+          name="returnUrl"
+          value={`${window.location.origin}/return`}
+        />
+        <input
+          type="hidden"
+          name="productName"
+          value={courseName || "Course Payment"}
+        />
+        <input
+          type="hidden"
+          name="courseIds"
+          value={JSON.stringify(courseIds)}
+        />
+        <button type="submit">Submit</button>
+      </form>
     </div>
   );
 };
