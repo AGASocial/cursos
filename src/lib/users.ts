@@ -255,3 +255,57 @@ export const isUserEnrolledInCourse = async (
     return false;
   }
 };
+
+// Define a type for course details
+export interface CourseDetails {
+  id: string;
+  title: string;
+  description?: string;
+  instructor?: string;
+  price?: number;
+  thumbnail?: string;
+  duration?: string;
+  level?: string;
+  category?: string;
+  tags?: string[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+/**
+ * Gets course details by IDs
+ * @param courseIds Array of course IDs
+ * @returns Promise that resolves to an array of course details
+ */
+export const getCourseDetailsByIds = async (courseIds: string[]): Promise<CourseDetails[]> => {
+  try {
+    if (!courseIds || courseIds.length === 0) {
+      return [];
+    }
+
+    const courses: CourseDetails[] = [];
+    
+    // Get each course document
+    for (const courseId of courseIds) {
+      try {
+        const courseDoc = await getDoc(
+          doc(db, ACADEMIES_COLLECTION, ACADEMY, "courses", courseId)
+        );
+        
+        if (courseDoc.exists()) {
+          courses.push({
+            id: courseDoc.id,
+            ...courseDoc.data()
+          } as CourseDetails);
+        }
+      } catch (error) {
+        console.error(`Error fetching course ${courseId}:`, error);
+      }
+    }
+    
+    return courses;
+  } catch (error) {
+    console.error('Error getting course details:', error);
+    return [];
+  }
+};

@@ -50,7 +50,7 @@ export const Checkout = () => {
     );
 
     if (!success) {
-      setError(orderError || "Error al crear el pedido");
+      setError(orderError || "payment.error.checkout");
       setLoading(false);
       return;
     }
@@ -76,27 +76,34 @@ export const Checkout = () => {
 
       // Store the amount in Redux
       dispatch(setAmount(totalAmount));
-
+      
       // Create an array of course IDs to be purchased
-      const courseIds = cart.items.map((item) => item.id);
-
+      const courseIds = cart.items.map(item => item.id);
+      
       // Store the course IDs in localStorage for retrieval after payment
-      localStorage.setItem("purchasedCourseIds", JSON.stringify(courseIds));
+      localStorage.setItem('purchasedCourseIds', JSON.stringify(courseIds));
 
-      // Store the course name in Redux (use the first course name if multiple items)
+      // Store the course name in Redux - create a complete list of course titles
       if (cart.items.length > 0) {
-        const courseName =
-          cart.items.length === 1
-            ? cart.items[0].title
-            : `${cart.items[0].title} y ${cart.items.length - 1} más`;
+        let courseName;
+        
+        if (cart.items.length === 1) {
+          // If only one course, use its title
+          courseName = cart.items[0].title;
+        } else {
+          // If multiple courses, list all titles
+          courseName = cart.items.map(item => item.title).join(", ");
+        }
+        
         dispatch(setCourseName(courseName));
       }
 
       // Navigate to payment process
       navigate("/payment/process");
+      
     } catch (error) {
       console.error("Error initiating checkout:", error);
-      setError("Error al iniciar el proceso de pago. Por favor, inténtelo de nuevo.");
+      setError("payment.error.checkout");
     } finally {
       setLoading(false);
     }
@@ -106,7 +113,7 @@ export const Checkout = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        Loading
+        <FormattedMessage id="payment.loading" />
       </div>
     );
   }
@@ -115,8 +122,12 @@ export const Checkout = () => {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="text-red-500 mb-4">{error}</div>
-        <Button onClick={() => setError("")}>Try Again</Button>
+        <div className="text-red-500 mb-4">
+          <FormattedMessage id={error} defaultMessage={error} />
+        </div>
+        <Button onClick={() => setError("")}>
+          <FormattedMessage id="payment.tryAgain" />
+        </Button>
       </div>
     );
   }

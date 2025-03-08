@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, ArrowLeft, BookOpen } from 'lucide-react';
+import { FormattedMessage } from 'react-intl';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
-import { enrollUserInCourses } from '../../lib/users';
+import { enrollUserInCourses, getCourseDetailsByIds, CourseDetails } from '../../lib/users';
 
 export const Return = () => {
   const [status, setStatus] = useState<string | null>(null);
@@ -11,6 +12,7 @@ export const Return = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [enrollmentStatus, setEnrollmentStatus] = useState<'pending' | 'success' | 'error'>('pending');
+  const [enrolledCourses, setEnrolledCourses] = useState<CourseDetails[]>([]);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -79,6 +81,16 @@ export const Return = () => {
                 console.log('Enrollment result:', enrollResult);
                 if (enrollResult.success) {
                   setEnrollmentStatus('success');
+                  
+                  // Get course details for display
+                  getCourseDetailsByIds(courseIds)
+                    .then(courses => {
+                      setEnrolledCourses(courses);
+                    })
+                    .catch(error => {
+                      console.error('Error fetching course details:', error);
+                    });
+                  
                   // Clear the stored course IDs from localStorage
                   localStorage.removeItem('purchasedCourseIds');
                 } else {
@@ -99,7 +111,7 @@ export const Return = () => {
       .catch((error) => {
         console.error('Error fetching session status:', error);
         setStatus('error');
-        setError(error.message || 'Failed to check payment status');
+        setError(error instanceof Error ? error.message : 'An error occurred');
       })
       .finally(() => {
         setLoading(false);
@@ -110,7 +122,9 @@ export const Return = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin mb-4" />
-        <p className="text-gray-600">Verificando su pago...</p>
+        <p className="text-gray-600">
+          <FormattedMessage id="payment.return.verifying" />
+        </p>
       </div>
     );
   }
@@ -127,23 +141,47 @@ export const Return = () => {
             <div className="flex justify-center mb-6">
               <CheckCircle className="w-16 h-16 text-green-500" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4 text-center">¡Pago Exitoso!</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+              <FormattedMessage id="payment.return.success.title" />
+            </h1>
             <p className="text-gray-600 mb-4 text-center">
-              ¡Gracias por su compra! Se enviará un correo electrónico de confirmación a {customerEmail}.
+              <FormattedMessage 
+                id="payment.return.success.message" 
+                values={{ email: customerEmail }}
+              />
             </p>
             {enrollmentStatus === 'success' && (
-              <p className="text-green-600 mb-4 text-center font-semibold">
-                ¡Ha sido inscrito exitosamente en el/los curso(s)!
-              </p>
+              <div className="mb-6">
+                <p className="text-green-600 mb-4 text-center font-semibold">
+                  <FormattedMessage id="payment.return.enrollment.success" />
+                </p>
+                
+                {enrolledCourses.length > 0 && (
+                  <div className="mt-6 border rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-3 border-b">
+                      <h3 className="text-sm font-medium text-gray-700">
+                        <FormattedMessage id="payment.return.courses.title" />
+                      </h3>
+                    </div>
+                    <ul className="divide-y divide-gray-200">
+                      {enrolledCourses.map(course => (
+                        <li key={course.id} className="px-4 py-3 flex items-center">
+                          <BookOpen className="h-5 w-5 text-blue-500 mr-3" />
+                          <span className="text-sm text-gray-700">{course.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             )}
             {enrollmentStatus === 'error' && (
               <p className="text-yellow-600 mb-4 text-center">
-                El pago fue exitoso, pero encontramos un problema al inscribirle en el/los curso(s).
-                Por favor, contacte con soporte con los detalles de su pedido.
+                <FormattedMessage id="payment.return.enrollment.error" />
               </p>
             )}
             <p className="text-gray-600 text-center mb-8">
-              Si tiene alguna pregunta, por favor envíe un correo electrónico a{' '}
+              <FormattedMessage id="payment.return.support" />{' '}
               <a 
                 href="mailto:soporte-cursos@aga.social" 
                 className="text-blue-600 hover:text-blue-800"
@@ -155,7 +193,7 @@ export const Return = () => {
               <Link to="/courses">
                 <Button>
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Volver a los Cursos
+                  <FormattedMessage id="payment.return.back" />
                 </Button>
               </Link>
             </div>
@@ -173,15 +211,17 @@ export const Return = () => {
             <div className="flex justify-center mb-6">
               <AlertCircle className="w-16 h-16 text-yellow-500" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4 text-center">Pago Cancelado</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+              <FormattedMessage id="payment.return.canceled.title" />
+            </h1>
             <p className="text-gray-600 mb-8 text-center">
-              Su pago fue cancelado. No se realizaron cargos.
+              <FormattedMessage id="payment.return.canceled.message" />
             </p>
             <div className="flex justify-center">
               <Link to="/checkout">
                 <Button>
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Volver al Carrito
+                  <FormattedMessage id="payment.return.back.checkout" />
                 </Button>
               </Link>
             </div>
@@ -199,20 +239,22 @@ export const Return = () => {
           <div className="flex justify-center mb-6">
             <AlertCircle className="w-16 h-16 text-red-500" />
           </div>
-          <h1 className="text-2xl font-bold text-red-600 mb-4 text-center">Error de Pago</h1>
+          <h1 className="text-2xl font-bold text-red-600 mb-4 text-center">
+            <FormattedMessage id="payment.return.error.title" />
+          </h1>
           <p className="text-gray-600 mb-4 text-center">
-            Hubo un error al procesar su pago. Por favor, inténtelo de nuevo o contacte con soporte.
+            <FormattedMessage id="payment.return.error.message" />
           </p>
           {error && (
             <p className="text-sm text-red-500 mb-8 text-center">
-              Detalles del error: {error}
+              <FormattedMessage id="payment.return.error.details" /> {error}
             </p>
           )}
           <div className="flex justify-center">
             <Link to="/checkout">
               <Button>
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Volver al Carrito
+                <FormattedMessage id="payment.return.back.checkout" />
               </Button>
             </Link>
           </div>
