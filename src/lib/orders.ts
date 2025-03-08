@@ -135,3 +135,31 @@ export const approveOrder = async (orderId: string): Promise<{ success: boolean;
     };
   }
 };
+
+export const updateOrderStatus = async (
+  orderId: string,
+  status: 'pending' | 'completed'
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const academyId = ACADEMY;
+    const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', orderId);
+    const orderDoc = await getDoc(orderRef);
+    
+    if (!orderDoc.exists()) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    await updateDoc(orderRef, {
+      status,
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update order status'
+    };
+  }
+};

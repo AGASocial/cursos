@@ -5,6 +5,7 @@ import { FormattedMessage } from 'react-intl';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { enrollUserInCourses, getCourseDetailsByIds, CourseDetails } from '../../lib/users';
+import { updateOrderStatus } from '../../lib/orders';
 
 export const Return = () => {
   const [status, setStatus] = useState<string | null>(null);
@@ -13,6 +14,7 @@ export const Return = () => {
   const [error, setError] = useState<string | null>(null);
   const [enrollmentStatus, setEnrollmentStatus] = useState<'pending' | 'success' | 'error'>('pending');
   const [enrolledCourses, setEnrolledCourses] = useState<CourseDetails[]>([]);
+  const [orderUpdated, setOrderUpdated] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -51,9 +53,12 @@ export const Return = () => {
         setStatus(data.status);
         setCustomerEmail(data.customer_email);
         
-        // If payment is complete and we have a user, enroll them in the courses
+        // If payment is complete and we have a user, update order and enroll in courses
         if (data.status === 'complete' && user) {
-          // Get course IDs from session metadata - now it's already an array
+          // Get order ID from session metadata
+          const orderId = data.metadata?.orderId;
+          
+          // Get course IDs from session metadata
           let courseIds = data.metadata?.courseIds;
           
           // If no course IDs in metadata, try to get from localStorage as fallback
@@ -72,36 +77,86 @@ export const Return = () => {
             }
           }
           
+          // If no order ID in metadata, try to get from localStorage as fallback
+          let orderIdToUse = orderId;
+          if (!orderIdToUse) {
+            console.log('No order ID in session metadata, trying localStorage');
+            const storedOrderId = localStorage.getItem('pendingOrderId');
+            if (storedOrderId) {
+              orderIdToUse = storedOrderId;
+            } else {
+              console.warn('No order ID found in metadata or localStorage');
+            }
+          }
+          
           if (courseIds && Array.isArray(courseIds) && courseIds.length > 0) {
             console.log('Course IDs for enrollment:', courseIds);
             
-            // Enroll the user in the courses - handle as a separate Promise
-            enrollUserInCourses(user.uid, courseIds)
-              .then((enrollResult) => {
-                console.log('Enrollment result:', enrollResult);
-                if (enrollResult.success) {
-                  setEnrollmentStatus('success');
+            // Get course details for display
+            getCourseDetailsByIds(courseIds)
+              .then(courses => {
+                setEnrolledCourses(courses);
+                
+                // Update order status if we have an order ID
+                if (orderIdToUse && !orderUpdated) {
+                  console.log('Updating order status for order:', orderIdToUse);
                   
-                  // Get course details for display
-                  getCourseDetailsByIds(courseIds)
-                    .then(courses => {
-                      setEnrolledCourses(courses);
+                  // Update the order status to completed
+                  updateOrderStatus(orderIdToUse, 'completed')
+                    .then(result => {
+                      if (result.success) {
+                        console.log('Order status updated successfully');
+                        setOrderUpdated(true);
+                        
+                        // Now enroll the user in the courses
+                        return enrollUserInCourses(user.uid, courseIds);
+                      } else {
+                        throw new Error(result.error || 'Failed to update order status');
+                      }
+                    })
+                    .then(enrollResult => {
+                      console.log('Enrollment result:', enrollResult);
+                      if (enrollResult.success) {
+                        setEnrollmentStatus('success');
+                        // Clear the stored IDs from localStorage
+                        localStorage.removeItem('purchasedCourseIds');
+                        localStorage.removeItem('pendingOrderId');
+                      } else {
+                        setEnrollmentStatus('error');
+                        setError(`Enrollment error: ${enrollResult.error}`);
+                      }
                     })
                     .catch(error => {
-                      console.error('Error fetching course details:', error);
+                      console.error('Error in order/enrollment process:', error);
+                      setEnrollmentStatus('error');
+                      setError(error instanceof Error ? error.message : 'Failed to process order');
                     });
-                  
-                  // Clear the stored course IDs from localStorage
-                  localStorage.removeItem('purchasedCourseIds');
-                } else {
-                  setEnrollmentStatus('error');
-                  setError(`Enrollment error: ${enrollResult.error}`);
+                } else if (!orderIdToUse) {
+                  // If we don't have an order ID, just enroll the user in the courses
+                  console.warn('No order ID found, proceeding with enrollment only');
+                  enrollUserInCourses(user.uid, courseIds)
+                    .then(enrollResult => {
+                      console.log('Enrollment result:', enrollResult);
+                      if (enrollResult.success) {
+                        setEnrollmentStatus('success');
+                        // Clear the stored course IDs from localStorage
+                        localStorage.removeItem('purchasedCourseIds');
+                      } else {
+                        setEnrollmentStatus('error');
+                        setError(`Enrollment error: ${enrollResult.error}`);
+                      }
+                    })
+                    .catch(error => {
+                      console.error('Error enrolling user in courses:', error);
+                      setEnrollmentStatus('error');
+                      setError(error instanceof Error ? error.message : 'Failed to enroll in courses');
+                    });
                 }
               })
-              .catch((enrollError) => {
-                console.error('Error enrolling user in courses:', enrollError);
+              .catch(error => {
+                console.error('Error fetching course details:', error);
                 setEnrollmentStatus('error');
-                setError(enrollError instanceof Error ? enrollError.message : 'Failed to enroll in courses');
+                setError('Failed to fetch course details');
               });
           } else {
             console.warn('No course IDs found in session metadata');
@@ -116,7 +171,7 @@ export const Return = () => {
       .finally(() => {
         setLoading(false);
       });
-  }, [user]);
+  }, [user, orderUpdated]);
 
   if (loading) {
     return (
