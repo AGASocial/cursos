@@ -270,6 +270,7 @@ export interface CourseDetails {
   tags?: string[];
   createdAt?: Date;
   updatedAt?: Date;
+  slug?: string;
 }
 
 /**
