@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Mail, AlertCircle, Check, CreditCard } from 'lucide-react';
-import { FormattedMessage } from 'react-intl';
-import { Button } from '../components/ui/Button';
-import { useCart } from '../contexts/CartContext';
-import { useAuth } from '../contexts/AuthContext';
-import { createOrder } from '../lib/orders';
-import { loadStripe } from '@stripe/stripe-js';
-import { useDispatch } from 'react-redux';
-import { setAmount } from '../store/features/paymentSlice';
-
-// Make sure to call `loadStripe` outside of a component's render to avoid
-// recreating the `Stripe` object on every render.
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ShoppingCart,
+  Mail,
+  AlertCircle,
+  Check,
+  CreditCard,
+} from "lucide-react";
+import { FormattedMessage } from "react-intl";
+import { Button } from "../components/ui/Button";
+import { useCart } from "../contexts/CartContext";
+import { useAuth } from "../contexts/AuthContext";
+import { createOrder } from "../lib/orders";
+import { useDispatch } from "react-redux";
+import { setAmount, setCourseName } from "../store/features/paymentSlice";
 
 export const Checkout = () => {
   const navigate = useNavigate();
@@ -21,14 +22,14 @@ export const Checkout = () => {
   const dispatch = useDispatch();
   const [purchaseComplete, setPurchaseComplete] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     // Handle redirects in useEffect
     if (cart.items.length === 0) {
-      navigate('/courses');
+      navigate("/courses");
     } else if (!user) {
-      navigate('/login');
+      navigate("/login");
     }
   }, [cart.items.length, user, navigate]);
 
@@ -39,7 +40,7 @@ export const Checkout = () => {
 
   const handleCompletePurchase = async () => {
     setLoading(true);
-    setError('');
+    setError("");
 
     const { success, error: orderError } = await createOrder(
       user.uid,
@@ -49,7 +50,7 @@ export const Checkout = () => {
     );
 
     if (!success) {
-      setError(orderError || 'Failed to create order');
+      setError(orderError || "Error al crear el pedido");
       setLoading(false);
       return;
     }
@@ -58,27 +59,44 @@ export const Checkout = () => {
     // Clear the cart after 3 seconds and redirect to courses
     setTimeout(() => {
       clearCart();
-      navigate('/courses');
+      navigate("/courses");
     }, 3000);
   };
 
   const handleStripeCheckout = async () => {
     setLoading(true);
-    setError('');
-    
+    setError("");
+
     try {
       // Calculate total amount in cents
-      const totalAmount = cart.items.reduce((total, item) => total + (item.price * 100), 0);
-      
+      const totalAmount = cart.items.reduce(
+        (total, item) => total + item.price * 100,
+        0
+      );
+
       // Store the amount in Redux
       dispatch(setAmount(totalAmount));
-      
+
+      // Create an array of course IDs to be purchased
+      const courseIds = cart.items.map((item) => item.id);
+
+      // Store the course IDs in localStorage for retrieval after payment
+      localStorage.setItem("purchasedCourseIds", JSON.stringify(courseIds));
+
+      // Store the course name in Redux (use the first course name if multiple items)
+      if (cart.items.length > 0) {
+        const courseName =
+          cart.items.length === 1
+            ? cart.items[0].title
+            : `${cart.items[0].title} y ${cart.items.length - 1} más`;
+        dispatch(setCourseName(courseName));
+      }
+
       // Navigate to payment process
-      navigate('/payment/process');
-      
+      navigate("/payment/process");
     } catch (error) {
-      console.error('Error initiating checkout:', error);
-      setError('Failed to initiate checkout. Please try again.');
+      console.error("Error initiating checkout:", error);
+      setError("Error al iniciar el proceso de pago. Por favor, inténtelo de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -98,7 +116,7 @@ export const Checkout = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <div className="text-red-500 mb-4">{error}</div>
-        <Button onClick={() => setError('')}>Try Again</Button>
+        <Button onClick={() => setError("")}>Try Again</Button>
       </div>
     );
   }
@@ -142,10 +160,16 @@ export const Checkout = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-semibold text-gray-900 truncate">{item.title}</h3>
-                        <p className="mt-2 text-sm text-gray-500">{item.instructor}</p>
+                        <h3 className="text-xl font-semibold text-gray-900 truncate">
+                          {item.title}
+                        </h3>
+                        <p className="mt-2 text-sm text-gray-500">
+                          {item.instructor}
+                        </p>
                       </div>
-                      <p className="text-xl font-semibold text-gray-900">${item.price}</p>
+                      <p className="text-xl font-semibold text-gray-900">
+                        ${item.price}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -159,13 +183,17 @@ export const Checkout = () => {
                       <dt className="text-base text-gray-600">
                         <FormattedMessage id="cart.total" />
                       </dt>
-                      <dd className="text-base font-medium text-gray-900">${cart.total.toFixed(2)}</dd>
+                      <dd className="text-base font-medium text-gray-900">
+                        ${cart.total.toFixed(2)}
+                      </dd>
                     </div>
                     <div className="flex items-center justify-between border-t border-gray-200 pt-6">
                       <dt className="text-lg font-semibold text-gray-900">
                         <FormattedMessage id="cart.total" />
                       </dt>
-                      <dd className="text-lg font-semibold text-blue-600">${cart.total.toFixed(2)}</dd>
+                      <dd className="text-lg font-semibold text-blue-600">
+                        ${cart.total.toFixed(2)}
+                      </dd>
                     </div>
                   </dl>
                 </div>
@@ -203,7 +231,11 @@ export const Checkout = () => {
                     <div className="rounded-xl border border-gray-200 p-6 hover:border-blue-200 hover:shadow-md transition-all duration-200">
                       <div className="flex items-center space-x-4">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                          <svg className="h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                          <svg
+                            className="h-5 w-5 text-blue-600"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                          >
                             <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .757-.629h7.815c2.604 0 4.429.715 5.445 2.135.463.659.77 1.466.883 2.385.117.961.006 2.203-.33 3.604l-.002.01v.01c-.401 2.053-1.23 3.83-2.45 5.238-1.203 1.389-2.736 2.373-4.558 2.931-1.772.547-3.78.547-5.989.547h-.767c-.612 0-1.137.437-1.24 1.037l-1.265 5.766a.642.642 0 0 1-.63.512H2.47z" />
                           </svg>
                         </div>
@@ -250,11 +282,19 @@ export const Checkout = () => {
                             <FormattedMessage id="checkout.important" />
                           </h3>
                           <div className="mt-3 text-base text-blue-800">
-                            <p><FormattedMessage id="checkout.payment.instructions" /></p>
+                            <p>
+                              <FormattedMessage id="checkout.payment.instructions" />
+                            </p>
                             <ul className="mt-4 list-disc pl-5 space-y-2">
-                              <li><FormattedMessage id="checkout.payment.instructions.email" /></li>
-                              <li><FormattedMessage id="checkout.payment.instructions.transaction" /></li>
-                              <li><FormattedMessage id="checkout.payment.instructions.courses" /></li>
+                              <li>
+                                <FormattedMessage id="checkout.payment.instructions.email" />
+                              </li>
+                              <li>
+                                <FormattedMessage id="checkout.payment.instructions.transaction" />
+                              </li>
+                              <li>
+                                <FormattedMessage id="checkout.payment.instructions.courses" />
+                              </li>
                             </ul>
                           </div>
                         </div>
