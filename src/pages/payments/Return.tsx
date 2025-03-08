@@ -219,12 +219,23 @@ export const Return = () => {
                       </h3>
                     </div>
                     <ul className="divide-y divide-gray-200">
-                      {enrolledCourses.map(course => (
-                        <li key={course.id} className="px-4 py-3 flex items-center">
-                          <BookOpen className="h-5 w-5 text-blue-500 mr-3" />
-                          <span className="text-sm text-gray-700">{course.title}</span>
-                        </li>
-                      ))}
+                      {enrolledCourses.map(course => {
+                        // Use the slug if available, otherwise generate a slug from the title or use the ID
+                        const courseSlug = course.slug || 
+                          (course.title ? course.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : course.id);
+                        
+                        return (
+                          <li key={course.id} className="px-4 py-3 flex items-center">
+                            <BookOpen className="h-5 w-5 text-blue-500 mr-3" />
+                            <Link 
+                              to={`/courses/${courseSlug}/learn`} 
+                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {course.title}
+                            </Link>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}
