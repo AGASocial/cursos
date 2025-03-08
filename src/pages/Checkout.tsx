@@ -74,14 +74,31 @@ export const Checkout = () => {
         0
       );
 
-      // Store the amount in Redux
-      dispatch(setAmount(totalAmount));
-      
       // Create an array of course IDs to be purchased
       const courseIds = cart.items.map(item => item.id);
       
+      // Create a pending order in Firebase
+      const orderResult = await createOrder(
+        user.uid,
+        user.email!,
+        cart.items,
+        cart.total
+      );
+      
+      if (!orderResult.success) {
+        throw new Error(orderResult.error || "payment.error.checkout");
+      }
+      
+      console.log("Created pending order:", orderResult.orderId);
+      
+      // Store the order ID in localStorage for fallback
+      localStorage.setItem('pendingOrderId', orderResult.orderId!);
+      
       // Store the course IDs in localStorage for retrieval after payment
       localStorage.setItem('purchasedCourseIds', JSON.stringify(courseIds));
+
+      // Store the amount in Redux
+      dispatch(setAmount(totalAmount));
 
       // Store the course name in Redux - create a complete list of course titles
       if (cart.items.length > 0) {
@@ -98,8 +115,8 @@ export const Checkout = () => {
         dispatch(setCourseName(courseName));
       }
 
-      // Navigate to payment process
-      navigate("/payment/process");
+      // Navigate to payment process with order ID
+      navigate(`/payment/process?orderId=${orderResult.orderId}`);
       
     } catch (error) {
       console.error("Error initiating checkout:", error);

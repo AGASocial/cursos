@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-// import { useParams } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { FormattedMessage } from "react-intl";
 // import { loadStripe } from "@stripe/stripe-js";
@@ -13,8 +13,10 @@ export const PaymentProcess = () => {
   const amount = useSelector((state: RootState) => selectAmount(state));
   const courseName = useSelector((state: RootState) => selectCourseName(state));
   const [courseIds, setCourseIds] = useState<string[]>([]);
+  const [orderId, setOrderId] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const initializedRef = useRef(false);
+  const location = useLocation();
 
   useEffect(() => {
     // Prevent multiple executions
@@ -22,6 +24,22 @@ export const PaymentProcess = () => {
       return;
     }
     initializedRef.current = true;
+
+    // Get order ID from URL query parameters
+    const searchParams = new URLSearchParams(location.search);
+    const orderIdFromUrl = searchParams.get('orderId');
+    
+    if (orderIdFromUrl) {
+      setOrderId(orderIdFromUrl);
+    } else {
+      // Fallback to localStorage
+      const storedOrderId = localStorage.getItem('pendingOrderId');
+      if (storedOrderId) {
+        setOrderId(storedOrderId);
+      } else {
+        console.warn('No order ID found in URL or localStorage');
+      }
+    }
 
     // Retrieve course IDs from localStorage
     const storedCourseIds = localStorage.getItem('purchasedCourseIds');
@@ -52,7 +70,7 @@ export const PaymentProcess = () => {
     if (formRef.current) {
       formRef.current.submit();
     }
-  }, [amount, courseName]);
+  }, [amount, courseName, location.search]);
 
   if (error) {
     return (
@@ -97,6 +115,13 @@ export const PaymentProcess = () => {
           name="courseIds"
           value={JSON.stringify(courseIds)}
         />
+        {orderId && (
+          <input
+            type="hidden"
+            name="orderId"
+            value={orderId}
+          />
+        )}
         <button type="submit">Submit</button>
       </form>
     </div>

@@ -17,7 +17,7 @@ export interface Order {
     price: number;
   }[];
   total: number;
-  status: 'pending' | 'completed' | 'rejected';
+  status: 'cart' | 'pending' | 'completed' | 'rejected';
   createdAt: Date;
 }
 
@@ -136,22 +136,30 @@ export const approveOrder = async (orderId: string): Promise<{ success: boolean;
   }
 };
 
-export const rejectOrder = async (orderId: string): Promise<{ success: boolean; error?: string }> => {
+export const updateOrderStatus = async (
+  orderId: string,
+  status: 'cart' | 'pending' | 'completed' | 'rejected'
+): Promise<{ success: boolean; error?: string }> => {
   try {
     const academyId = ACADEMY;
     const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', orderId);
+    const orderDoc = await getDoc(orderRef);
     
+    if (!orderDoc.exists()) {
+      return { success: false, error: 'Order not found' };
+    }
+
     await updateDoc(orderRef, {
-      status: 'rejected',
+      status,
       updatedAt: serverTimestamp()
     });
 
     return { success: true };
   } catch (error) {
-    console.error('Error rejecting order:', error);
+    console.error('Error updating order status:', error);
     return {
       success: false,
-      error: 'Failed to reject order. Please try again.'
+      error: error instanceof Error ? error.message : 'Failed to update order status'
     };
   }
 };
