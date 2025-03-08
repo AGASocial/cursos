@@ -125,6 +125,31 @@ export default {
   'courses.empty.suggestion': 'Try adjusting your filters or search term.',
   'courses.loading': 'Loading amazing courses for you...',
 
+  // Payment Process
+  'payment.redirecting': 'Redirecting to payment page...',
+  'payment.error.amount': 'No amount specified for payment',
+  'payment.error.courseName': 'No course name specified',
+  'payment.error.processing': 'Failed to process course information',
+  'payment.error.checkout': 'Failed to initiate checkout. Please try again.',
+  'payment.loading': 'Processing...',
+  'payment.tryAgain': 'Try Again',
+
+  // Payment Return
+  'payment.return.verifying': 'Verifying your payment...',
+  'payment.return.success.title': 'Payment Successful!',
+  'payment.return.success.message': 'Thank you for your purchase! A confirmation email will be sent to {email}.',
+  'payment.return.enrollment.success': 'You have been successfully enrolled in the course(s)!',
+  'payment.return.enrollment.error': 'Payment was successful, but we encountered an issue enrolling you in the course(s). Please contact support with your order details.',
+  'payment.return.courses.title': 'Purchased courses:',
+  'payment.return.support': 'If you have any questions, please email',
+  'payment.return.back': 'Return to Courses',
+  'payment.return.canceled.title': 'Payment Canceled',
+  'payment.return.canceled.message': 'Your payment was canceled. No charges were made.',
+  'payment.return.back.checkout': 'Return to Checkout',
+  'payment.return.error.title': 'Payment Error',
+  'payment.return.error.message': 'There was an error processing your payment. Please try again or contact support.',
+  'payment.return.error.details': 'Error details:',
+
   // Course Details
   'course.enrolled': 'students enrolled',
   'course.about': 'About this course',

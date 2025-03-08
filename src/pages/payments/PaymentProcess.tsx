@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 // import { useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-// import { FormattedMessage } from "react-intl";
+import { FormattedMessage } from "react-intl";
 // import { loadStripe } from "@stripe/stripe-js";
 // import { StripeCheckoutForm } from "../../components/payments/StripeCheckoutForm";
 import { useSelector } from "react-redux";
@@ -30,7 +30,7 @@ export const PaymentProcess = () => {
         setCourseIds(JSON.parse(storedCourseIds));
       } catch (error) {
         console.error('Error parsing course IDs from localStorage:', error);
-        setError('Error al procesar la información del curso');
+        setError('payment.error.processing');
         return;
       }
     } else {
@@ -39,13 +39,13 @@ export const PaymentProcess = () => {
 
     // Check if amount is available
     if (!amount) {
-      setError("No se ha especificado un monto para el pago");
+      setError("payment.error.amount");
       return;
     }
 
     // Check if course name is available
     if (!courseName) {
-      console.warn("No se ha especificado un nombre de curso, usando el valor predeterminado");
+      console.warn("No course name specified, using default");
     }
 
     // Submit the form automatically
@@ -57,7 +57,9 @@ export const PaymentProcess = () => {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-red-500">{error}</div>
+        <div className="text-red-500">
+          <FormattedMessage id={error} />
+        </div>
       </div>
     );
   }
@@ -65,7 +67,9 @@ export const PaymentProcess = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <Loader2 className="w-8 h-8 animate-spin mb-4" />
-      <span className="mb-8">Redirigiendo a la página de pago...</span>
+      <span className="mb-8">
+        <FormattedMessage id="payment.redirecting" />
+      </span>
 
       {/* Hidden form that will be submitted automatically */}
       <form
@@ -86,7 +90,7 @@ export const PaymentProcess = () => {
         <input
           type="hidden"
           name="productName"
-          value={courseName || "Course Payment"}
+          value={courseName ? `Cursos: ${courseName}` : "Pago de Cursos"}
         />
         <input
           type="hidden"
