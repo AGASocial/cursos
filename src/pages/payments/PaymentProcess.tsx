@@ -31,11 +31,13 @@ export const PaymentProcess = () => {
     
     if (orderIdFromUrl) {
       setOrderId(orderIdFromUrl);
+      console.log("Using order ID from URL:", orderIdFromUrl);
     } else {
       // Fallback to localStorage
       const storedOrderId = localStorage.getItem('pendingOrderId');
       if (storedOrderId) {
         setOrderId(storedOrderId);
+        console.log("Using order ID from localStorage:", storedOrderId);
       } else {
         console.warn('No order ID found in URL or localStorage');
       }
@@ -46,6 +48,7 @@ export const PaymentProcess = () => {
     if (storedCourseIds) {
       try {
         setCourseIds(JSON.parse(storedCourseIds));
+        console.log("Using course IDs from localStorage:", JSON.parse(storedCourseIds));
       } catch (error) {
         console.error('Error parsing course IDs from localStorage:', error);
         setError('payment.error.processing');
@@ -68,9 +71,17 @@ export const PaymentProcess = () => {
 
     // Submit the form automatically
     if (formRef.current) {
+      console.log("Submitting form with data:", {
+        amount,
+        currency: "USD",
+        returnUrl: `${window.location.origin}/return`,
+        productName: courseName ? `Cursos: ${courseName}` : "Pago de Cursos",
+        courseIds: JSON.stringify(courseIds),
+        orderId
+      });
       formRef.current.submit();
     }
-  }, [amount, courseName, location.search]);
+  }, [amount, courseName, location.search, courseIds, orderId]);
 
   if (error) {
     return (
@@ -115,13 +126,12 @@ export const PaymentProcess = () => {
           name="courseIds"
           value={JSON.stringify(courseIds)}
         />
-        {orderId && (
-          <input
-            type="hidden"
-            name="orderId"
-            value={orderId}
-          />
-        )}
+        {/* Always include orderId, even if it's an empty string */}
+        <input
+          type="hidden"
+          name="orderId"
+          value={orderId || ''}
+        />
         <button type="submit">Submit</button>
       </form>
     </div>

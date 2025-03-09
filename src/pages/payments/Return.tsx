@@ -419,6 +419,8 @@ export const Return = () => {
     try {
       // Verify payment with Stripe using the backend endpoint with the correct structure
       const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      console.log(`Fetching session status from: ${backendUrl}/Payments/session-status?session_id=${sessionId}`);
+      
       const response = await fetch(`${backendUrl}/Payments/session-status?session_id=${sessionId}`);
       
       if (!response.ok) {
@@ -426,6 +428,8 @@ export const Return = () => {
       }
       
       const data = await response.json();
+      console.log('Session status data:', data);
+      console.log('Session metadata:', data.metadata);
       
       // Set the status from the API response
       setStatus(data.status);
@@ -436,7 +440,16 @@ export const Return = () => {
       
       if (data.status === 'complete') {
         // Get the order ID associated with this session
-        const orderId = data.orderId || localStorage.getItem('pendingOrderId');
+        const pendingOrderId = localStorage.getItem('pendingOrderId');
+        console.log('Order ID from metadata:', data.metadata?.orderId);
+        console.log('Order ID from localStorage:', pendingOrderId);
+        
+        // If metadata is empty or doesn't have orderId, use the one from localStorage
+        const orderId = (data.metadata?.orderId && data.metadata.orderId !== '') 
+          ? data.metadata.orderId 
+          : pendingOrderId;
+          
+        console.log('Using Order ID:', orderId);
         
         if (!orderId) {
           setError('Could not find order information.');
@@ -457,13 +470,52 @@ export const Return = () => {
             // Get courses from the order
             const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId));
             const orderData = orderDoc.data();
-            const courses = orderData?.courses || [];
+            console.log('Order data:', orderData);
+            
+            // Try to get course IDs from session metadata first, then fall back to order data
+            let courseIds = [];
+            
+            // Check if metadata has non-empty courseIds array
+            if (data.metadata?.courseIds && 
+                Array.isArray(data.metadata.courseIds) && 
+                data.metadata.courseIds.length > 0) {
+              courseIds = data.metadata.courseIds;
+              console.log('Using course IDs from session metadata:', courseIds);
+            } else {
+              // Fall back to order data
+              const orderItems = orderData?.items || [];
+              courseIds = orderItems.map((item: OrderItem) => item.courseId);
+              console.log('Using course IDs from order data:', courseIds);
+            }
+            
+            if (courseIds.length === 0) {
+              throw new Error('No course IDs found in session metadata or order data');
+            }
             
             // Enroll user in each course
-            for (const course of courses) {
-              // Replace with your actual enrollment function
-              await enrollUserInCourses(user.uid, [course.id]);
-            }
+            console.log('Enrolling user in courses:', courseIds);
+            await enrollUserInCourses(user.uid, courseIds);
+            
+            // Fetch course details for display
+            console.log('Fetching course details for display');
+            const courseDetailsPromises = courseIds.map(async (courseId: string) => {
+              const courseDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'courses', courseId));
+              if (courseDoc.exists()) {
+                const courseData = courseDoc.data();
+                return {
+                  id: courseId,
+                  title: courseData.title || '',
+                  price: courseData.price || 0,
+                  description: courseData.description || '',
+                  imageUrl: courseData.imageUrl || '',
+                  instructor: courseData.instructor || ''
+                } as CourseDetails;
+              }
+              return null;
+            });
+            
+            const courseDetails = (await Promise.all(courseDetailsPromises)).filter(Boolean) as CourseDetails[];
+            console.log('Course details:', courseDetails);
             
             // Update order to 'completed' status
             await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId), {
@@ -471,18 +523,19 @@ export const Return = () => {
               completedAt: serverTimestamp()
             });
             
-            setEnrolledCourses(courses);
+            setEnrolledCourses(courseDetails);
             setEnrollmentStatus('success');
             
             // Clear the pending order ID from localStorage
             localStorage.removeItem('pendingOrderId');
+            console.log('Cleared pendingOrderId from localStorage');
           } catch (enrollError: unknown) {
             console.error('Error enrolling user in courses:', enrollError);
             setError('Payment successful, but there was an issue enrolling you in some courses. Our team has been notified and will fix this shortly.');
             setEnrollmentStatus('error');
             
             // Log this to a special collection for admin attention
-            await addDoc(collection(db, 'enrollmentErrors'), {
+            await addDoc(collection(db, ACADEMIES_COLLECTION, ACADEMY, 'enrollmentErrors'), {
               userId: user.uid,
               orderId: orderId,
               error: enrollError instanceof Error ? enrollError.message : String(enrollError),
@@ -553,7 +606,11 @@ export const Return = () => {
                       {enrolledCourses.map(course => {
                         // Use the slug if available, otherwise generate a slug from the title or use the ID
                         const courseSlug = course.slug || 
-                          (course.title ? course.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : course.id);
+                          (course.title ? course.title.toLowerCase()
+                            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents/diacritics
+                            .replace(/\s+/g, '-')
+                            .replace(/[^a-z0-9-]/g, '') 
+                            : course.id);
                         
                         return (
                           <li key={course.id} className="px-4 py-3 flex items-center">
@@ -627,7 +684,7 @@ export const Return = () => {
             )}
             <div className="flex justify-center">
               <Button 
-                onClick={() => navigate('/cart')} 
+                onClick={() => navigate('/checkout')} 
                 className="flex items-center"
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
