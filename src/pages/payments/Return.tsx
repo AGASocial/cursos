@@ -1,177 +1,508 @@
-import { useEffect, useState } from 'react';
-import { Navigate, Link } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertCircle, ArrowLeft, BookOpen } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { FormattedMessage } from 'react-intl';
+import { Navigate, Link } from 'react-router-dom';
+import { CheckCircle, Loader2, AlertCircle, ArrowLeft, BookOpen, ShoppingCart } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
-import { enrollUserInCourses, getCourseDetailsByIds, CourseDetails } from '../../lib/users';
-import { updateOrderStatus } from '../../lib/orders';
+import { CourseDetails, enrollUserInCourses } from '../../lib/users';
+import { db } from '../../lib/firebase';
+import { 
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  updateDoc,
+  serverTimestamp
+} from 'firebase/firestore';
+import { useDispatch } from 'react-redux';
+import { setCartItems } from '../../store/features/cartSlice';
+import { useNavigate } from 'react-router-dom';
+import { useCart } from '../../contexts/CartContext';
+import type { Course } from '../../lib/courses';
+
+// Add constants for collections
+const ACADEMIES_COLLECTION = import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || 'agaacademies';
+const ACADEMY = import.meta.env.VITE_AGA_ACADEMY;
+
+// Define interfaces for order items
+interface OrderItem {
+  courseId: string;
+  title: string;
+  price: number;
+}
 
 export const Return = () => {
   const [status, setStatus] = useState<string | null>(null);
-  const [customerEmail, setCustomerEmail] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [enrollmentStatus, setEnrollmentStatus] = useState<'pending' | 'success' | 'error'>('pending');
   const [enrolledCourses, setEnrolledCourses] = useState<CourseDetails[]>([]);
-  const [orderUpdated, setOrderUpdated] = useState(false);
+  const [customerEmail, setCustomerEmail] = useState<string>(''); // Needed for the success message
   const { user } = useAuth();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { addItem, clearCart } = useCart();
+  const [canceledProcessed, setCanceledProcessed] = useState(false);
 
   useEffect(() => {
-    const queryString = window.location.search;
-    const urlParams = new URLSearchParams(queryString);
-    const sessionId = urlParams.get('session_id');
-    const success = urlParams.get('success');
-
-    if (!sessionId) {
-      setStatus('error');
-      setError('No session ID found in the URL');
-      setLoading(false);
+    // Skip processing if we've already handled this canceled payment
+    if (canceledProcessed) {
       return;
     }
 
-    // If success parameter is false, don't check status
-    if (success === 'false' || success === 'canceled') {
-      setStatus('canceled');
-      setLoading(false);
-      return;
-    }
-
-    console.log(`Checking session status for: ${sessionId}`);
+    const searchParams = new URLSearchParams(window.location.search);
+    const sessionId = searchParams.get('session_id');
+    const canceled = searchParams.get('canceled');
     
-    fetch(`${import.meta.env.VITE_API_URL}/Payments/session-status?session_id=${sessionId}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error('Error response:', errorText);
-          throw new Error(`Failed to fetch session status: ${res.status} ${res.statusText}`);
+    // Log localStorage state for debugging
+    console.log('localStorage state:', {
+      pendingOrderId: localStorage.getItem('pendingOrderId'),
+      purchasedCourseIds: localStorage.getItem('purchasedCourseIds'),
+      cart: localStorage.getItem('cart')
+    });
+    
+    // If the cart is empty but we have purchasedCourseIds, try to restore the cart
+    const cart = localStorage.getItem('cart');
+    const parsedCart = cart ? JSON.parse(cart) : { items: [] };
+    const purchasedCourseIds = localStorage.getItem('purchasedCourseIds');
+    
+    if (parsedCart.items.length === 0 && purchasedCourseIds) {
+      console.log('Cart is empty but purchasedCourseIds exists, attempting to restore cart');
+      try {
+        const courseIds = JSON.parse(purchasedCourseIds);
+        if (Array.isArray(courseIds) && courseIds.length > 0) {
+          // This will be handled in the canceled === 'true' block or below
+          console.log('Found course IDs to restore:', courseIds);
         }
-        return res.json();
-      })
-      .then((data) => {
-        console.log('Session status data:', data);
-        setStatus(data.status);
-        setCustomerEmail(data.customer_email);
-        
-        // If payment is complete and we have a user, update order and enroll in courses
-        if (data.status === 'complete' && user) {
-          // Get order ID from session metadata
-          const orderId = data.metadata?.orderId;
+      } catch (e) {
+        console.error('Error parsing purchasedCourseIds:', e);
+      }
+    }
+    
+    if (canceled === 'true') {
+      // Set status for canceled payment
+      setStatus('canceled');
+      
+      // Mark as processed to prevent infinite loop
+      setCanceledProcessed(true);
+      
+      // Handle canceled payment scenario
+      
+      // 1. Get the pending order ID from localStorage
+      const pendingOrderId = localStorage.getItem('pendingOrderId');
+      
+      if (!pendingOrderId) {
+        setError('order.not_found');
+        setLoading(false);
+        return;
+      }
+      
+      // 2. Fetch the pending order to recreate the cart
+      const fetchPendingOrder = async () => {
+        try {
+          console.log('Fetching pending order:', pendingOrderId);
+          const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', pendingOrderId));
           
-          // Get course IDs from session metadata
-          let courseIds = data.metadata?.courseIds;
+          if (!orderDoc.exists()) {
+            console.error('Order not found:', pendingOrderId);
+            setError('order.pending_not_found');
+            setLoading(false);
+            return;
+          }
           
-          // If no course IDs in metadata, try to get from localStorage as fallback
-          if (!courseIds || !Array.isArray(courseIds) || courseIds.length === 0) {
-            console.log('No valid course IDs in session metadata, trying localStorage');
-            const courseIdsString = localStorage.getItem('purchasedCourseIds');
-            if (courseIdsString) {
+          const orderData = orderDoc.data();
+          console.log('Order data retrieved successfully:', orderData);
+          
+          // Skip updating the order status since we don't have permission
+          // Only admins can update orders according to the security rules
+          // Instead, just focus on restoring the cart
+          
+          // 4. Recreate the cart with the courses from the pending order
+          // Check for items array as seen in the Firestore document
+          const orderItems = orderData.items || [];
+          console.log('Order items found:', orderItems);
+          
+          if (orderItems.length > 0) {
+            console.log('Restoring cart with items:', orderItems);
+            
+            // Convert items to CourseDetails format
+            const cartItems = await Promise.all(orderItems.map(async (item: OrderItem) => {
+              // Fetch additional course details if needed
               try {
-                courseIds = JSON.parse(courseIdsString);
-              } catch (error) {
-                console.error('Error parsing course IDs from localStorage:', error);
-                setEnrollmentStatus('error');
-                setError('Failed to parse course IDs from localStorage');
-                return;
+                const courseDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'courses', item.courseId));
+                if (courseDoc.exists()) {
+                  const courseData = courseDoc.data();
+                  return {
+                    id: item.courseId,
+                    title: item.title,
+                    price: item.price,
+                    description: courseData.description || '',
+                    imageUrl: courseData.imageUrl || '',
+                    instructor: courseData.instructor || ''
+                  } as CourseDetails;
+                }
+              } catch (err) {
+                console.error(`Error fetching details for course ${item.courseId}:`, err);
+              }
+              
+              // Fallback if course fetch fails
+              return {
+                id: item.courseId,
+                title: item.title,
+                price: item.price,
+                description: '',
+                imageUrl: '',
+                instructor: ''
+              } as CourseDetails;
+            }));
+            
+            console.log('Cart items after conversion:', cartItems);
+            
+            // Update Redux store
+            dispatch(setCartItems(cartItems));
+            
+            // Also update CartContext
+            clearCart();
+            cartItems.forEach((item: CourseDetails) => {
+              // Create a minimal Course object with required fields
+              const courseItem: Course = {
+                id: item.id,
+                title: item.title || '',
+                price: item.price || 0,
+                description: item.description || '',
+                instructor: item.instructor || '',
+                // Add required fields with default values
+                status: 'published',
+                slug: '',
+                thumbnail: '',
+                duration: '',
+                enrolledCount: 0,
+                category: '',
+                level: 'beginner',
+                aboutCourse: '',
+                learningObjectives: '',
+                createdAt: new Date(),
+                updatedAt: new Date()
+              };
+              addItem(courseItem);
+            });
+            
+            // Also update localStorage directly to ensure consistency
+            const cartState = { 
+              items: cartItems, 
+              total: cartItems.reduce((sum: number, item: CourseDetails) => sum + (item.price || 0), 0) 
+            };
+            localStorage.setItem('cart', JSON.stringify(cartState));
+            console.log('Cart saved to localStorage:', cartState);
+            
+            // 5. Inform the user and redirect to cart
+            setError('payment.canceled_cart_restored');
+            setLoading(false);
+            
+            
+            
+          } else {
+            // Try to use purchasedCourseIds as a fallback
+            const purchasedCourseIds = localStorage.getItem('purchasedCourseIds');
+            if (purchasedCourseIds) {
+              try {
+                const courseIds = JSON.parse(purchasedCourseIds);
+                if (Array.isArray(courseIds) && courseIds.length > 0) {
+                  // Fetch course details for these IDs
+                  const fetchCourseDetails = async () => {
+                    // This is a placeholder - you'll need to implement or use an existing function
+                    // to fetch course details by IDs
+                    const courses = await Promise.all(
+                      courseIds.map(async (id) => {
+                        const courseDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'courses', id));
+                        if (courseDoc.exists()) {
+                          const courseData = courseDoc.data();
+                          return {
+                            id,
+                            title: courseData.title || '',
+                            price: courseData.price || 0,
+                            description: courseData.description || '',
+                            imageUrl: courseData.imageUrl || '',
+                            instructor: courseData.instructor || ''
+                          };
+                        }
+                        return null;
+                      })
+                    );
+                    
+                    const validCourses = courses.filter(course => course !== null);
+                    if (validCourses.length > 0) {
+                      // Update Redux store
+                      dispatch(setCartItems(validCourses));
+                      
+                      // Update CartContext
+                      clearCart();
+                      validCourses.forEach((item: CourseDetails) => {
+                        // Create a minimal Course object with required fields
+                        const courseItem: Course = {
+                          id: item.id,
+                          title: item.title || '',
+                          price: item.price || 0,
+                          description: item.description || '',
+                          instructor: item.instructor || '',
+                          // Add required fields with default values
+                          status: 'published',
+                          slug: '',
+                          thumbnail: '',
+                          duration: '',
+                          enrolledCount: 0,
+                          category: '',
+                          level: 'beginner',
+                          aboutCourse: '',
+                          learningObjectives: '',
+                          createdAt: new Date(),
+                          updatedAt: new Date()
+                        };
+                        addItem(courseItem);
+                      });
+                      
+                      // Update localStorage directly
+                      const cartState = { 
+                        items: validCourses, 
+                        total: validCourses.reduce((sum: number, item: CourseDetails) => sum + (item.price || 0), 0) 
+                      };
+                      localStorage.setItem('cart', JSON.stringify(cartState));
+                      console.log('Cart saved to localStorage from purchasedCourseIds:', cartState);
+                      
+                      setError('payment.canceled_cart_restored');
+                    } else {
+                      setError('payment.canceled_no_courses');
+                    }
+                    setLoading(false);
+                  };
+                  
+                  fetchCourseDetails();
+                  return;
+                }
+              } catch (parseError) {
+                console.error('Error parsing purchasedCourseIds:', parseError);
               }
             }
-          }
-          
-          // If no order ID in metadata, try to get from localStorage as fallback
-          let orderIdToUse = orderId;
-          if (!orderIdToUse) {
-            console.log('No order ID in session metadata, trying localStorage');
-            const storedOrderId = localStorage.getItem('pendingOrderId');
-            if (storedOrderId) {
-              orderIdToUse = storedOrderId;
-            } else {
-              console.warn('No order ID found in metadata or localStorage');
-            }
-          }
-          
-          if (courseIds && Array.isArray(courseIds) && courseIds.length > 0) {
-            console.log('Course IDs for enrollment:', courseIds);
             
-            // Get course details for display
-            getCourseDetailsByIds(courseIds)
-              .then(courses => {
-                setEnrolledCourses(courses);
-                
-                // Update order status if we have an order ID
-                if (orderIdToUse && !orderUpdated) {
-                  console.log('Updating order status for order:', orderIdToUse);
-                  
-                  // Update the order status to completed
-                  updateOrderStatus(orderIdToUse, 'completed')
-                    .then(result => {
-                      if (result.success) {
-                        console.log('Order status updated successfully');
-                        setOrderUpdated(true);
-                        
-                        // Now enroll the user in the courses
-                        return enrollUserInCourses(user.uid, courseIds);
-                      } else {
-                        throw new Error(result.error || 'Failed to update order status');
-                      }
-                    })
-                    .then(enrollResult => {
-                      console.log('Enrollment result:', enrollResult);
-                      if (enrollResult.success) {
-                        setEnrollmentStatus('success');
-                        // Clear the stored IDs from localStorage
-                        localStorage.removeItem('purchasedCourseIds');
-                        localStorage.removeItem('pendingOrderId');
-                      } else {
-                        setEnrollmentStatus('error');
-                        setError(`Enrollment error: ${enrollResult.error}`);
-                      }
-                    })
-                    .catch(error => {
-                      console.error('Error in order/enrollment process:', error);
-                      setEnrollmentStatus('error');
-                      setError(error instanceof Error ? error.message : 'Failed to process order');
-                    });
-                } else if (!orderIdToUse) {
-                  // If we don't have an order ID, just enroll the user in the courses
-                  console.warn('No order ID found, proceeding with enrollment only');
-                  enrollUserInCourses(user.uid, courseIds)
-                    .then(enrollResult => {
-                      console.log('Enrollment result:', enrollResult);
-                      if (enrollResult.success) {
-                        setEnrollmentStatus('success');
-                        // Clear the stored course IDs from localStorage
-                        localStorage.removeItem('purchasedCourseIds');
-                      } else {
-                        setEnrollmentStatus('error');
-                        setError(`Enrollment error: ${enrollResult.error}`);
-                      }
-                    })
-                    .catch(error => {
-                      console.error('Error enrolling user in courses:', error);
-                      setEnrollmentStatus('error');
-                      setError(error instanceof Error ? error.message : 'Failed to enroll in courses');
-                    });
-                }
-              })
-              .catch(error => {
-                console.error('Error fetching course details:', error);
-                setEnrollmentStatus('error');
-                setError('Failed to fetch course details');
-              });
-          } else {
-            console.warn('No course IDs found in session metadata');
+            setError('payment.canceled_no_courses');
+            setLoading(false);
           }
+        } catch (err) {
+          console.error('Error fetching pending order:', err);
+          // Provide more specific error message
+          if (err instanceof Error) {
+            if (err.message.includes('permission')) {
+              setError('payment.permission_error');
+              console.error('Permission error accessing order. Make sure your security rules allow reading orders.');
+              
+              // Try to use purchasedCourseIds as a fallback
+              const purchasedCourseIds = localStorage.getItem('purchasedCourseIds');
+              if (purchasedCourseIds) {
+                console.log('Attempting to restore cart from purchasedCourseIds');
+                try {
+                  const courseIds = JSON.parse(purchasedCourseIds);
+                  if (Array.isArray(courseIds) && courseIds.length > 0) {
+                    // Fetch course details for these IDs
+                    const fetchCourseDetails = async () => {
+                      try {
+                        const courses = await Promise.all(
+                          courseIds.map(async (id) => {
+                            try {
+                              const courseDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'courses', id));
+                              if (courseDoc.exists()) {
+                                const courseData = courseDoc.data();
+                                return {
+                                  id,
+                                  title: courseData.title || '',
+                                  price: courseData.price || 0,
+                                  description: courseData.description || '',
+                                  imageUrl: courseData.imageUrl || '',
+                                  instructor: courseData.instructor || ''
+                                } as CourseDetails;
+                              }
+                            } catch (courseErr) {
+                              console.error(`Error fetching course ${id}:`, courseErr);
+                            }
+                            return null;
+                          })
+                        );
+                        
+                        const validCourses = courses.filter(course => course !== null) as CourseDetails[];
+                        if (validCourses.length > 0) {
+                          console.log('Successfully fetched course details from IDs:', validCourses);
+                          
+                          // Update Redux store
+                          dispatch(setCartItems(validCourses));
+                          
+                          // Update CartContext
+                          clearCart();
+                          validCourses.forEach((item: CourseDetails) => {
+                            // Create a minimal Course object with required fields
+                            const courseItem: Course = {
+                              id: item.id,
+                              title: item.title || '',
+                              price: item.price || 0,
+                              description: item.description || '',
+                              instructor: item.instructor || '',
+                              // Add required fields with default values
+                              status: 'published',
+                              slug: '',
+                              thumbnail: '',
+                              duration: '',
+                              enrolledCount: 0,
+                              category: '',
+                              level: 'beginner',
+                              aboutCourse: '',
+                              learningObjectives: '',
+                              createdAt: new Date(),
+                              updatedAt: new Date()
+                            };
+                            addItem(courseItem);
+                          });
+                          
+                          // Update localStorage directly
+                          const cartState = { 
+                            items: validCourses, 
+                            total: validCourses.reduce((sum: number, item: CourseDetails) => sum + (item.price || 0), 0) 
+                          };
+                          localStorage.setItem('cart', JSON.stringify(cartState));
+                          console.log('Cart saved to localStorage from purchasedCourseIds:', cartState);
+                          
+                          setError('payment.canceled_cart_restored');
+                          setLoading(false);
+                          
+                          return;
+                        }
+                      } catch (detailsErr) {
+                        console.error('Error fetching course details:', detailsErr);
+                      }
+                      
+                      // If we get here, we couldn't restore the cart
+                      setError('payment.canceled_no_courses');
+                      setLoading(false);
+                    };
+                    
+                    fetchCourseDetails();
+                    return;
+                  }
+                } catch (parseErr) {
+                  console.error('Error parsing purchasedCourseIds:', parseErr);
+                }
+              }
+            } else {
+              setError('payment.cancellation_error');
+            }
+          } else {
+            setError('payment.cancellation_error');
+          }
+          setLoading(false);
         }
-      })
-      .catch((error) => {
-        console.error('Error fetching session status:', error);
-        setStatus('error');
-        setError(error instanceof Error ? error.message : 'An error occurred');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [user, orderUpdated]);
+      };
+      
+      fetchPendingOrder();
+      return;
+    }
+    
+    // Handle successful payment scenario (when session_id is present)
+    if (!sessionId) {
+      setError('payment.no_session_id');
+      setLoading(false);
+      return;
+    }
+    
+    console.log(`Checking session status for: ${sessionId}`);
+    
+    verifySession(sessionId);
+  }, [dispatch, navigate, user, addItem, clearCart, canceledProcessed]);
+
+  const verifySession = async (sessionId: string) => {
+    try {
+      // Verify payment with Stripe using the backend endpoint with the correct structure
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${backendUrl}/Payments/session-status?session_id=${sessionId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify payment status');
+      }
+      
+      const data = await response.json();
+      
+      // Set the status from the API response
+      setStatus(data.status);
+      
+      if (data.customer_email) {
+        setCustomerEmail(data.customer_email);
+      }
+      
+      if (data.status === 'complete') {
+        // Get the order ID associated with this session
+        const orderId = data.orderId || localStorage.getItem('pendingOrderId');
+        
+        if (!orderId) {
+          setError('Could not find order information.');
+          return;
+        }
+        
+        // Update order to 'paid' status
+        if (user) {
+          await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId), {
+            status: 'paid',
+            paidAt: serverTimestamp(),
+            paymentMethod: 'stripe',
+            stripeSessionId: sessionId
+          });
+          
+          // Attempt to enroll user in courses
+          try {
+            // Get courses from the order
+            const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId));
+            const orderData = orderDoc.data();
+            const courses = orderData?.courses || [];
+            
+            // Enroll user in each course
+            for (const course of courses) {
+              // Replace with your actual enrollment function
+              await enrollUserInCourses(user.uid, [course.id]);
+            }
+            
+            // Update order to 'completed' status
+            await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId), {
+              status: 'completed',
+              completedAt: serverTimestamp()
+            });
+            
+            setEnrolledCourses(courses);
+            setEnrollmentStatus('success');
+            
+            // Clear the pending order ID from localStorage
+            localStorage.removeItem('pendingOrderId');
+          } catch (enrollError: unknown) {
+            console.error('Error enrolling user in courses:', enrollError);
+            setError('Payment successful, but there was an issue enrolling you in some courses. Our team has been notified and will fix this shortly.');
+            setEnrollmentStatus('error');
+            
+            // Log this to a special collection for admin attention
+            await addDoc(collection(db, 'enrollmentErrors'), {
+              userId: user.uid,
+              orderId: orderId,
+              error: enrollError instanceof Error ? enrollError.message : String(enrollError),
+              timestamp: serverTimestamp()
+            });
+          }
+        } else {
+          setError('User not authenticated. Please log in to complete enrollment.');
+        }
+      } else {
+        setError('Payment verification failed. Please contact support.');
+      }
+    } catch (err) {
+      console.error('Error verifying session:', err);
+      setError('Error verifying payment. Please contact support.');
+    } finally {
+      // Set loading to false when verification is complete
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -278,18 +609,30 @@ export const Return = () => {
               <AlertCircle className="w-16 h-16 text-yellow-500" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-4 text-center">
-              <FormattedMessage id="payment.return.canceled.title" />
+              <FormattedMessage id="payment.canceled.title" defaultMessage="Payment Canceled" />
             </h1>
-            <p className="text-gray-600 mb-8 text-center">
-              <FormattedMessage id="payment.return.canceled.message" />
+            <p className="text-gray-600 mb-6 text-center">
+              <FormattedMessage 
+                id="payment.canceled.message" 
+                defaultMessage="Your payment was canceled. No charges were made to your account."
+              />
             </p>
+            {error === 'payment.canceled_cart_restored' && (
+              <p className="text-green-600 mb-6 text-center">
+                <FormattedMessage 
+                  id="payment.canceled_cart_restored" 
+                  defaultMessage="We've restored your cart so you can try again when you're ready."
+                />
+              </p>
+            )}
             <div className="flex justify-center">
-              <Link to="/checkout">
-                <Button>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  <FormattedMessage id="payment.return.back.checkout" />
-                </Button>
-              </Link>
+              <Button 
+                onClick={() => navigate('/cart')} 
+                className="flex items-center"
+              >
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                <FormattedMessage id="payment.go_to_cart" defaultMessage="Go to Cart" />
+              </Button>
             </div>
           </div>
         </div>
@@ -312,9 +655,17 @@ export const Return = () => {
             <FormattedMessage id="payment.return.error.message" />
           </p>
           {error && (
-            <p className="text-sm text-red-500 mb-8 text-center">
-              <FormattedMessage id="payment.return.error.details" /> {error}
-            </p>
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+              <FormattedMessage id={error} defaultMessage="An error occurred" />
+            </div>
+          )}
+          {error && (error === 'payment.canceled_cart_restored' || error === 'payment.canceled_no_courses') && (
+            <Button 
+              onClick={() => navigate('/checkout')} 
+              className="mt-4"
+            >
+              <FormattedMessage id="payment.go_to_cart" defaultMessage="Go to Cart" />
+            </Button>
           )}
           <div className="flex justify-center">
             <Link to="/checkout">

@@ -14,6 +14,11 @@ import { useAuth } from "../contexts/AuthContext";
 import { createOrder } from "../lib/orders";
 import { useDispatch } from "react-redux";
 import { setAmount, setCourseName } from "../store/features/paymentSlice";
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
+const ACADEMIES_COLLECTION = import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || 'agaacademies';
+const ACADEMY = import.meta.env.VITE_AGA_ACADEMY;
 
 export const Checkout = () => {
   const navigate = useNavigate();
@@ -77,46 +82,131 @@ export const Checkout = () => {
       // Create an array of course IDs to be purchased
       const courseIds = cart.items.map(item => item.id);
       
-      // Create a pending order in Firebase
-      const orderResult = await createOrder(
-        user.uid,
-        user.email!,
-        cart.items,
-        cart.total
-      );
+      // Check if there's an existing pending order in localStorage
+      const existingOrderId = localStorage.getItem('pendingOrderId');
+      let orderId;
       
-      if (!orderResult.success) {
-        throw new Error(orderResult.error || "payment.error.checkout");
-      }
-      
-      console.log("Created pending order:", orderResult.orderId);
-      
-      // Store the order ID in localStorage for fallback
-      localStorage.setItem('pendingOrderId', orderResult.orderId!);
-      
-      // Store the course IDs in localStorage for retrieval after payment
-      localStorage.setItem('purchasedCourseIds', JSON.stringify(courseIds));
-
-      // Store the amount in Redux
-      dispatch(setAmount(totalAmount));
-
-      // Store the course name in Redux - create a complete list of course titles
-      if (cart.items.length > 0) {
-        let courseName;
+      if (existingOrderId) {
+        try {
+          // Try to get the existing order
+          const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrderId));
+          
+          if (orderDoc.exists()) {
+            const orderData = orderDoc.data();
+            
+            // Only reuse the order if it's still pending and belongs to this user
+            if (orderData.status === 'pending' && orderData.userId === user.uid) {
+              console.log("Reusing existing pending order:", existingOrderId);
+              
+              // Update the order with new items and timestamp
+              await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrderId), {
+                items: cart.items.map(item => ({
+                  courseId: item.id,
+                  title: item.title,
+                  price: item.price
+                })),
+                total: cart.total,
+                updatedAt: serverTimestamp()
+              });
+              
+              orderId = existingOrderId;
+            } else {
+              // Order exists but is not pending or belongs to another user
+              console.log("Existing order is not pending or belongs to another user, creating new order");
+              const orderResult = await createOrder(
+                user.uid,
+                user.email!,
+                cart.items,
+                cart.total
+              );
+              
+              if (!orderResult.success) {
+                throw new Error(orderResult.error || "payment.error.checkout");
+              }
+              
+              orderId = orderResult.orderId;
+            }
+          } else {
+            // Order doesn't exist, create a new one
+            console.log("Order not found, creating new order");
+            const orderResult = await createOrder(
+              user.uid,
+              user.email!,
+              cart.items,
+              cart.total
+            );
+            
+            if (!orderResult.success) {
+              throw new Error(orderResult.error || "payment.error.checkout");
+            }
+            
+            orderId = orderResult.orderId;
+          }
+        } catch (orderError) {
+          console.error("Error checking existing order:", orderError);
+          // If there's an error checking the existing order, create a new one
+          const orderResult = await createOrder(
+            user.uid,
+            user.email!,
+            cart.items,
+            cart.total
+          );
+          
+          if (!orderResult.success) {
+            throw new Error(orderResult.error || "payment.error.checkout");
+          }
+          
+          orderId = orderResult.orderId;
+        }
+      } else {
+        // No existing order ID, create a new order
+        console.log("No existing order ID, creating new order");
+        const orderResult = await createOrder(
+          user.uid,
+          user.email!,
+          cart.items,
+          cart.total
+        );
         
-        if (cart.items.length === 1) {
-          // If only one course, use its title
-          courseName = cart.items[0].title;
-        } else {
-          // If multiple courses, list all titles
-          courseName = cart.items.map(item => item.title).join(", ");
+        if (!orderResult.success) {
+          throw new Error(orderResult.error || "payment.error.checkout");
         }
         
-        dispatch(setCourseName(courseName));
+        orderId = orderResult.orderId;
       }
+      
+      console.log("Using order ID for payment:", orderId);
+      
+      // Store the order ID in localStorage for fallback
+      if (orderId) {
+        localStorage.setItem('pendingOrderId', orderId);
+        
+        // Store the course IDs in localStorage for retrieval after payment
+        localStorage.setItem('purchasedCourseIds', JSON.stringify(courseIds));
 
-      // Navigate to payment process with order ID
-      navigate(`/payment/process?orderId=${orderResult.orderId}`);
+        // Store the amount in Redux
+        dispatch(setAmount(totalAmount));
+        
+        // Store the course name in Redux - create a complete list of course titles
+        if (cart.items.length > 0) {
+          let courseName;
+          
+          if (cart.items.length === 1) {
+            // If only one course, use its title
+            courseName = cart.items[0].title;
+          } else {
+            // If multiple courses, list all titles
+            courseName = cart.items.map(item => item.title).join(", ");
+          }
+          
+          dispatch(setCourseName(courseName));
+        }
+
+        // Navigate to payment process with order ID
+        navigate(`/payment/process?orderId=${orderId}`);
+      } else {
+        throw new Error("Failed to create or retrieve order ID");
+      }
       
     } catch (error) {
       console.error("Error initiating checkout:", error);
