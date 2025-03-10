@@ -1,10 +1,22 @@
-import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc, updateDoc, orderBy } from 'firebase/firestore';
-import { db } from './firebase';
-import type { Course } from './courses';
-import { addCourseToUser } from './users';
-import { incrementEnrolledCount } from './courses';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+  doc,
+  getDoc,
+  updateDoc,
+  orderBy,
+} from "firebase/firestore";
+import { db } from "./firebase";
+import type { Course } from "./courses";
+import { addCourseToUser } from "./users";
+import { incrementEnrolledCount } from "./courses";
 
-const ACADEMIES_COLLECTION = import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || 'agaacademies';
+const ACADEMIES_COLLECTION =
+  import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || "agaacademies";
 const ACADEMY = import.meta.env.VITE_AGA_ACADEMY;
 
 export interface Order {
@@ -31,23 +43,26 @@ export const createOrder = async (
     const orderData = {
       userId,
       userEmail,
-      items: items.map(item => ({
+      items: items.map((item) => ({
         courseId: item.id,
         title: item.title,
-        price: item.price
+        price: item.price,
       })),
       total,
-      status: 'pending',
-      createdAt: serverTimestamp()
+      status: "pending",
+      createdAt: serverTimestamp(),
     };
     const academyId = ACADEMY;
-    const orderRef = await addDoc(collection(db, ACADEMIES_COLLECTION, academyId, 'orders'), orderData);
+    const orderRef = await addDoc(
+      collection(db, ACADEMIES_COLLECTION, academyId, "orders"),
+      orderData
+    );
     return { success: true, orderId: orderRef.id };
   } catch (error) {
-    console.error('Error creating order:', error);
+    console.error("Error creating order:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to create order'
+      error: error instanceof Error ? error.message : "Failed to create order",
     };
   }
 };
@@ -68,54 +83,67 @@ export const createOrUpdateCartOrder = async (
 ): Promise<{ success: boolean; orderId?: string; error?: string }> => {
   try {
     const academyId = ACADEMY;
-    
+
     // Check if user already has a cart order
-    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, 'orders');
-    const q = query(ordersRef, 
-      where('userId', '==', userId),
-      where('status', '==', 'cart')
+    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, "orders");
+    const q = query(
+      ordersRef,
+      where("userId", "==", userId),
+      where("status", "==", "cart")
     );
     const snapshot = await getDocs(q);
-    
+
     if (!snapshot.empty) {
       // Update existing cart order
       const existingOrder = snapshot.docs[0];
-      const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', existingOrder.id);
-      
+      const orderRef = doc(
+        db,
+        ACADEMIES_COLLECTION,
+        academyId,
+        "orders",
+        existingOrder.id
+      );
+
       await updateDoc(orderRef, {
-        items: items.map(item => ({
+        items: items.map((item) => ({
           courseId: item.id,
           title: item.title,
-          price: item.price
+          price: item.price,
         })),
         total,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
-      
+
       return { success: true, orderId: existingOrder.id };
     } else {
       // Create new cart order
       const orderData = {
         userId,
         userEmail,
-        items: items.map(item => ({
+        items: items.map((item) => ({
           courseId: item.id,
           title: item.title,
-          price: item.price
+          price: item.price,
         })),
         total,
-        status: 'cart',
-        createdAt: serverTimestamp()
+        status: "cart",
+        createdAt: serverTimestamp(),
       };
-      
-      const orderRef = await addDoc(collection(db, ACADEMIES_COLLECTION, academyId, 'orders'), orderData);
+
+      const orderRef = await addDoc(
+        collection(db, ACADEMIES_COLLECTION, academyId, "orders"),
+        orderData
+      );
       return { success: true, orderId: orderRef.id };
     }
   } catch (error) {
-    console.error('Error creating/updating cart order:', error);
+    console.error("Error creating/updating cart order:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to create/update cart order'
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to create/update cart order",
     };
   }
 };
@@ -123,17 +151,17 @@ export const createOrUpdateCartOrder = async (
 export const getUserOrders = async (userId: string): Promise<Order[]> => {
   try {
     const academyId = ACADEMY;
-    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, 'orders');
-    const q = query(ordersRef, where('userId', '==', userId));
+    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, "orders");
+    const q = query(ordersRef, where("userId", "==", userId));
     const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => ({
+
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate()
+      createdAt: doc.data().createdAt?.toDate(),
     })) as Order[];
   } catch (error) {
-    console.error('Error fetching user orders:', error);
+    console.error("Error fetching user orders:", error);
     return [];
   }
 };
@@ -141,29 +169,37 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
 export const getAllOrders = async (): Promise<Order[]> => {
   try {
     const academyId = ACADEMY;
-    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, 'orders');
-    const q = query(ordersRef, orderBy('createdAt', 'desc'));
+    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, "orders");
+    const q = query(ordersRef, orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => ({
+
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate()
+      createdAt: doc.data().createdAt?.toDate(),
     })) as Order[];
   } catch (error) {
-    console.error('Error fetching all orders:', error);
+    console.error("Error fetching all orders:", error);
     return [];
   }
 };
 
-export const approveOrder = async (orderId: string): Promise<{ success: boolean; error?: string }> => {
+export const approveOrder = async (
+  orderId: string
+): Promise<{ success: boolean; error?: string }> => {
   try {
     const academyId = ACADEMY;
-    const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', orderId);
+    const orderRef = doc(
+      db,
+      ACADEMIES_COLLECTION,
+      academyId,
+      "orders",
+      orderId
+    );
     const orderDoc = await getDoc(orderRef);
-    
+
     if (!orderDoc.exists()) {
-      return { success: false, error: 'Order not found' };
+      return { success: false, error: "Order not found" };
     }
 
     const orderData = orderDoc.data() as Order;
@@ -180,26 +216,26 @@ export const approveOrder = async (orderId: string): Promise<{ success: boolean;
 
     try {
       await Promise.all(updatePromises);
-      
+
       // Update order status to completed
       await updateDoc(orderRef, {
-        status: 'completed',
-        updatedAt: serverTimestamp()
+        status: "completed",
+        updatedAt: serverTimestamp(),
       });
 
       return { success: true };
     } catch (error) {
-      console.error('Error updating user courses:', error);
+      console.error("Error updating user courses:", error);
       return {
         success: false,
-        error: 'admin.error.updateFailed'
+        error: "admin.error.updateFailed",
       };
     }
   } catch (error) {
-    console.error('Error approving order:', error);
+    console.error("Error approving order:", error);
     return {
       success: false,
-      error: 'Failed to approve order. Please try again.'
+      error: "Failed to approve order. Please try again.",
     };
   }
 };
@@ -210,24 +246,33 @@ export const updateOrderStatus = async (
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const academyId = ACADEMY;
-    const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', orderId);
+    const orderRef = doc(
+      db,
+      ACADEMIES_COLLECTION,
+      academyId,
+      "orders",
+      orderId
+    );
     const orderDoc = await getDoc(orderRef);
-    
+
     if (!orderDoc.exists()) {
-      return { success: false, error: 'Order not found' };
+      return { success: false, error: "Order not found" };
     }
 
     await updateDoc(orderRef, {
       status,
-      updatedAt: serverTimestamp()
+      updatedAt: serverTimestamp(),
     });
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating order status:', error);
+    console.error("Error updating order status:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to update order status'
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to update order status",
     };
   }
 };
@@ -242,35 +287,45 @@ export const convertCartOrderToPending = async (
 ): Promise<{ success: boolean; orderId?: string; error?: string }> => {
   try {
     const academyId = ACADEMY;
-    
+
     // Find the user's cart order
-    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, 'orders');
-    const q = query(ordersRef, 
-      where('userId', '==', userId),
-      where('status', '==', 'cart')
+    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, "orders");
+    const q = query(
+      ordersRef,
+      where("userId", "==", userId),
+      where("status", "==", "cart")
     );
     const snapshot = await getDocs(q);
-    
+
     if (snapshot.empty) {
-      return { success: false, error: 'No cart order found' };
+      return { success: false, error: "No cart order found" };
     }
-    
+
     // Get the cart order
     const cartOrder = snapshot.docs[0];
-    const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', cartOrder.id);
-    
+    const orderRef = doc(
+      db,
+      ACADEMIES_COLLECTION,
+      academyId,
+      "orders",
+      cartOrder.id
+    );
+
     // Update the order status to pending
     await updateDoc(orderRef, {
-      status: 'pending',
-      updatedAt: serverTimestamp()
+      status: "pending",
+      updatedAt: serverTimestamp(),
     });
-    
+
     return { success: true, orderId: cartOrder.id };
   } catch (error) {
-    console.error('Error converting cart order to pending:', error);
+    console.error("Error converting cart order to pending:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to convert cart order to pending'
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to convert cart order to pending",
     };
   }
 };
