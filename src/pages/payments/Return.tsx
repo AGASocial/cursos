@@ -988,7 +988,7 @@ export const Return = () => {
             )}
             <div className="flex justify-center">
               <Button 
-                onClick={() => navigate('/cart')} 
+                onClick={() => navigate('/checkout')} 
                 className="flex items-center"
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
