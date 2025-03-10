@@ -5,7 +5,10 @@ import { FormattedMessage } from "react-intl";
 // import { loadStripe } from "@stripe/stripe-js";
 // import { StripeCheckoutForm } from "../../components/payments/StripeCheckoutForm";
 import { useSelector } from "react-redux";
-import { selectAmount, selectCourseName } from "../../store/features/paymentSlice";
+import {
+  selectAmount,
+  selectCourseName,
+} from "../../store/features/paymentSlice";
 import type { RootState } from "../../store/store";
 
 export const PaymentProcess = () => {
@@ -27,35 +30,38 @@ export const PaymentProcess = () => {
 
     // Get order ID from URL query parameters
     const searchParams = new URLSearchParams(location.search);
-    const orderIdFromUrl = searchParams.get('orderId');
-    
+    const orderIdFromUrl = searchParams.get("orderId");
+
     if (orderIdFromUrl) {
       setOrderId(orderIdFromUrl);
       console.log("Using order ID from URL:", orderIdFromUrl);
     } else {
       // Fallback to localStorage
-      const storedOrderId = localStorage.getItem('pendingOrderId');
+      const storedOrderId = localStorage.getItem("pendingOrderId");
       if (storedOrderId) {
         setOrderId(storedOrderId);
         console.log("Using order ID from localStorage:", storedOrderId);
       } else {
-        console.warn('No order ID found in URL or localStorage');
+        console.warn("No order ID found in URL or localStorage");
       }
     }
 
     // Retrieve course IDs from localStorage
-    const storedCourseIds = localStorage.getItem('purchasedCourseIds');
+    const storedCourseIds = localStorage.getItem("purchasedCourseIds");
     if (storedCourseIds) {
       try {
         setCourseIds(JSON.parse(storedCourseIds));
-        console.log("Using course IDs from localStorage:", JSON.parse(storedCourseIds));
+        console.log(
+          "Using course IDs from localStorage:",
+          JSON.parse(storedCourseIds)
+        );
       } catch (error) {
-        console.error('Error parsing course IDs from localStorage:', error);
-        setError('payment.error.processing');
+        console.error("Error parsing course IDs from localStorage:", error);
+        setError("payment.error.processing");
         return;
       }
     } else {
-      console.warn('No course IDs found in localStorage');
+      console.warn("No course IDs found in localStorage");
     }
 
     // Check if amount is available
@@ -77,7 +83,7 @@ export const PaymentProcess = () => {
         returnUrl: `${window.location.origin}/return`,
         productName: courseName ? `Cursos: ${courseName}` : "Pago de Cursos",
         courseIds: JSON.stringify(courseIds),
-        orderId
+        orderId,
       });
       formRef.current.submit();
     }
@@ -127,11 +133,7 @@ export const PaymentProcess = () => {
           value={JSON.stringify(courseIds)}
         />
         {/* Always include orderId, even if it's an empty string */}
-        <input
-          type="hidden"
-          name="orderId"
-          value={orderId || ''}
-        />
+        <input type="hidden" name="orderId" value={orderId || ""} />
         <button type="submit">Submit</button>
       </form>
     </div>

@@ -1,10 +1,4 @@
-import {
-  doc,
-  updateDoc,
-  arrayUnion,
-  getDoc,
-  setDoc,
-} from "firebase/firestore";
+import { doc, updateDoc, arrayUnion, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage, auth } from "./firebase";
 import {
@@ -176,15 +170,20 @@ export const enrollUserInCourses = async (
   courseIds: string[]
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    console.log('Enrolling user in courses - userId:', userId, 'courseIds:', courseIds);
-    
+    console.log(
+      "Enrolling user in courses - userId:",
+      userId,
+      "courseIds:",
+      courseIds
+    );
+
     if (!userId) {
-      console.error('No user ID provided for enrollment');
+      console.error("No user ID provided for enrollment");
       return { success: false, error: "Se requiere ID de usuario" };
     }
 
     if (!courseIds || courseIds.length === 0) {
-      console.error('No course IDs provided for enrollment');
+      console.error("No course IDs provided for enrollment");
       return { success: false, error: "No se proporcionaron IDs de cursos" };
     }
 
@@ -194,35 +193,35 @@ export const enrollUserInCourses = async (
     // Check if user exists
     const userDoc = await getDoc(userRef);
     if (!userDoc.exists()) {
-      console.error('User not found for enrollment:', userId);
+      console.error("User not found for enrollment:", userId);
       return { success: false, error: "Usuario no encontrado" };
     }
 
     // Get current enrolled courses
     const userData = userDoc.data();
     const currentEnrolledCourses = userData.enrolledCourses || [];
-    
+
     // Filter out courses the user is already enrolled in
     const newCourseIds = courseIds.filter(
-      courseId => !currentEnrolledCourses.includes(courseId)
+      (courseId) => !currentEnrolledCourses.includes(courseId)
     );
-    
-    console.log('Current enrolled courses:', currentEnrolledCourses);
-    console.log('Courses to enroll:', courseIds);
-    console.log('New courses to enroll:', newCourseIds);
-    
+
+    console.log("Current enrolled courses:", currentEnrolledCourses);
+    console.log("Courses to enroll:", courseIds);
+    console.log("New courses to enroll:", newCourseIds);
+
     // If all courses are already enrolled, return success
     if (newCourseIds.length === 0) {
-      console.log('User is already enrolled in all specified courses');
+      console.log("User is already enrolled in all specified courses");
       return { success: true };
     }
 
     // Update the user's enrolledCourses array with the new course IDs
     await updateDoc(userRef, {
-      enrolledCourses: arrayUnion(...newCourseIds)
+      enrolledCourses: arrayUnion(...newCourseIds),
     });
-    
-    console.log('Successfully enrolled user in courses:', newCourseIds);
+
+    console.log("Successfully enrolled user in courses:", newCourseIds);
     return { success: true };
   } catch (error) {
     console.error("Error enrolling user in courses:", error);
@@ -284,35 +283,37 @@ export interface CourseDetails {
  * @param courseIds Array of course IDs
  * @returns Promise that resolves to an array of course details
  */
-export const getCourseDetailsByIds = async (courseIds: string[]): Promise<CourseDetails[]> => {
+export const getCourseDetailsByIds = async (
+  courseIds: string[]
+): Promise<CourseDetails[]> => {
   try {
     if (!courseIds || courseIds.length === 0) {
       return [];
     }
 
     const courses: CourseDetails[] = [];
-    
+
     // Get each course document
     for (const courseId of courseIds) {
       try {
         const courseDoc = await getDoc(
           doc(db, ACADEMIES_COLLECTION, ACADEMY, "courses", courseId)
         );
-        
+
         if (courseDoc.exists()) {
           courses.push({
             id: courseDoc.id,
-            ...courseDoc.data()
+            ...courseDoc.data(),
           } as CourseDetails);
         }
       } catch (error) {
         console.error(`Error fetching course ${courseId}:`, error);
       }
     }
-    
+
     return courses;
   } catch (error) {
-    console.error('Error getting course details:', error);
+    console.error("Error getting course details:", error);
     return [];
   }
 };
