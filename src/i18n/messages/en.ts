@@ -141,6 +141,7 @@ export default {
   'payment.return.enrollment.success': 'You have been successfully enrolled in the course(s)!',
   'payment.return.enrollment.error': 'Payment was successful, but we encountered an issue enrolling you in the course(s). Please contact support with your order details.',
   'payment.return.courses.title': 'Purchased courses:',
+  'payment.return.start.learning': 'Start Learning',
   'payment.return.support': 'If you have any questions, please email',
   'payment.return.back': 'Return to Courses',
   'payment.return.canceled.title': 'Payment Canceled',

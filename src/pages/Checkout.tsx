@@ -11,7 +11,7 @@ import { FormattedMessage } from "react-intl";
 import { Button } from "../components/ui/Button";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
-import { createOrder } from "../lib/orders";
+import { createOrder, convertCartOrderToPending, approveOrder } from "../lib/orders";
 import { useDispatch } from "react-redux";
 import { setAmount, setCourseName } from "../store/features/paymentSlice";
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -47,25 +47,52 @@ export const Checkout = () => {
     setLoading(true);
     setError("");
 
-    const { success, error: orderError } = await createOrder(
-      user.uid,
-      user.email!,
-      cart.items,
-      cart.total
-    );
+    try {
+      // First, try to convert an existing cart order to pending
+      const cartOrderResult = await convertCartOrderToPending(user.uid);
+      let orderId;
+      
+      if (cartOrderResult.success) {
+        console.log("Converted cart order to pending:", cartOrderResult.orderId);
+        orderId = cartOrderResult.orderId;
+      } else {
+        // If no cart order exists, create a new pending order
+        const orderResult = await createOrder(
+          user.uid,
+          user.email!,
+          cart.items,
+          cart.total
+        );
 
-    if (!success) {
-      setError(orderError || "payment.error.checkout");
+        if (!orderResult.success) {
+          setError(orderResult.error || "payment.error.checkout");
+          setLoading(false);
+          return;
+        }
+        
+        orderId = orderResult.orderId;
+      }
+      
+      // Now approve the order to enroll the user in the courses
+      const approvalResult = await approveOrder(orderId!);
+      
+      if (!approvalResult.success) {
+        setError(approvalResult.error || "payment.error.approval");
+        setLoading(false);
+        return;
+      }
+
+      setPurchaseComplete(true);
+      // Clear the cart after 3 seconds and redirect to courses
+      setTimeout(() => {
+        clearCart();
+        navigate("/courses");
+      }, 3000);
+    } catch (error) {
+      console.error("Error completing purchase:", error);
+      setError("payment.error.checkout");
       setLoading(false);
-      return;
     }
-
-    setPurchaseComplete(true);
-    // Clear the cart after 3 seconds and redirect to courses
-    setTimeout(() => {
-      clearCart();
-      navigate("/courses");
-    }, 3000);
   };
 
   const handleStripeCheckout = async () => {
@@ -82,37 +109,60 @@ export const Checkout = () => {
       // Create an array of course IDs to be purchased
       const courseIds = cart.items.map(item => item.id);
       
-      // Check if there's an existing pending order in localStorage
-      const existingOrderId = localStorage.getItem('pendingOrderId');
+      // First, try to convert an existing cart order to pending
+      const cartOrderResult = await convertCartOrderToPending(user.uid);
       let orderId;
       
-      if (existingOrderId) {
-        try {
-          // Try to get the existing order
-          const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrderId));
-          
-          if (orderDoc.exists()) {
-            const orderData = orderDoc.data();
+      if (cartOrderResult.success && cartOrderResult.orderId) {
+        console.log("Converted cart order to pending:", cartOrderResult.orderId);
+        orderId = cartOrderResult.orderId;
+      } else {
+        // Check if there's an existing pending order in localStorage
+        const existingOrderId = localStorage.getItem('pendingOrderId');
+        
+        if (existingOrderId) {
+          try {
+            // Try to get the existing order
+            const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrderId));
             
-            // Only reuse the order if it's still pending and belongs to this user
-            if (orderData.status === 'pending' && orderData.userId === user.uid) {
-              console.log("Reusing existing pending order:", existingOrderId);
+            if (orderDoc.exists()) {
+              const orderData = orderDoc.data();
               
-              // Update the order with new items and timestamp
-              await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrderId), {
-                items: cart.items.map(item => ({
-                  courseId: item.id,
-                  title: item.title,
-                  price: item.price
-                })),
-                total: cart.total,
-                updatedAt: serverTimestamp()
-              });
-              
-              orderId = existingOrderId;
+              // Only reuse the order if it's still pending and belongs to this user
+              if (orderData.status === 'pending' && orderData.userId === user.uid) {
+                console.log("Reusing existing pending order:", existingOrderId);
+                
+                // Update the order with new items and timestamp
+                await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrderId), {
+                  items: cart.items.map(item => ({
+                    courseId: item.id,
+                    title: item.title,
+                    price: item.price
+                  })),
+                  total: cart.total,
+                  updatedAt: serverTimestamp()
+                });
+                
+                orderId = existingOrderId;
+              } else {
+                // Order exists but is not pending or belongs to another user
+                console.log("Existing order is not pending or belongs to another user, creating new order");
+                const orderResult = await createOrder(
+                  user.uid,
+                  user.email!,
+                  cart.items,
+                  cart.total
+                );
+                
+                if (!orderResult.success) {
+                  throw new Error(orderResult.error || "payment.error.checkout");
+                }
+                
+                orderId = orderResult.orderId;
+              }
             } else {
-              // Order exists but is not pending or belongs to another user
-              console.log("Existing order is not pending or belongs to another user, creating new order");
+              // Order doesn't exist, create a new one
+              console.log("Order not found, creating new order");
               const orderResult = await createOrder(
                 user.uid,
                 user.email!,
@@ -126,9 +176,9 @@ export const Checkout = () => {
               
               orderId = orderResult.orderId;
             }
-          } else {
-            // Order doesn't exist, create a new one
-            console.log("Order not found, creating new order");
+          } catch (orderError) {
+            console.error("Error checking existing order:", orderError);
+            // If there's an error checking the existing order, create a new one
             const orderResult = await createOrder(
               user.uid,
               user.email!,
@@ -142,9 +192,9 @@ export const Checkout = () => {
             
             orderId = orderResult.orderId;
           }
-        } catch (orderError) {
-          console.error("Error checking existing order:", orderError);
-          // If there's an error checking the existing order, create a new one
+        } else {
+          // No existing order ID, create a new order
+          console.log("No existing order ID, creating new order");
           const orderResult = await createOrder(
             user.uid,
             user.email!,
@@ -158,21 +208,6 @@ export const Checkout = () => {
           
           orderId = orderResult.orderId;
         }
-      } else {
-        // No existing order ID, create a new order
-        console.log("No existing order ID, creating new order");
-        const orderResult = await createOrder(
-          user.uid,
-          user.email!,
-          cart.items,
-          cart.total
-        );
-        
-        if (!orderResult.success) {
-          throw new Error(orderResult.error || "payment.error.checkout");
-        }
-        
-        orderId = orderResult.orderId;
       }
       
       console.log("Using order ID for payment:", orderId);
