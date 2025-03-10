@@ -6,13 +6,16 @@ import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { CourseDetails, enrollUserInCourses } from '../../lib/users';
 import { db } from '../../lib/firebase';
+import { incrementEnrolledCount } from '../../lib/courses';
 import { 
   collection,
   addDoc,
   doc,
   getDoc,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  setDoc,
+  arrayUnion
 } from 'firebase/firestore';
 import { useDispatch } from 'react-redux';
 import { setCartItems } from '../../store/features/cartSlice';
@@ -31,6 +34,16 @@ interface OrderItem {
   price: number;
 }
 
+// Define a simple interface for course objects
+interface CourseItem {
+  id: string;
+  title?: string;
+  price?: number;
+  description?: string;
+  instructor?: string;
+  // Add other possible properties as needed
+}
+
 export const Return = () => {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +56,11 @@ export const Return = () => {
   const navigate = useNavigate();
   const { addItem, clearCart } = useCart();
   const [canceledProcessed, setCanceledProcessed] = useState(false);
+
+  useEffect(() => {
+    console.log('Enrollment status:', enrollmentStatus);
+    console.log('Enrolled courses:', enrolledCourses);
+  }, [enrollmentStatus, enrolledCourses]);
 
   useEffect(() => {
     // Skip processing if we've already handled this canceled payment
@@ -419,8 +437,6 @@ export const Return = () => {
     try {
       // Verify payment with Stripe using the backend endpoint with the correct structure
       const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      console.log(`Fetching session status from: ${backendUrl}/Payments/session-status?session_id=${sessionId}`);
-      
       const response = await fetch(`${backendUrl}/Payments/session-status?session_id=${sessionId}`);
       
       if (!response.ok) {
@@ -428,8 +444,6 @@ export const Return = () => {
       }
       
       const data = await response.json();
-      console.log('Session status data:', data);
-      console.log('Session metadata:', data.metadata);
       
       // Set the status from the API response
       setStatus(data.status);
@@ -440,122 +454,408 @@ export const Return = () => {
       
       if (data.status === 'complete') {
         // Get the order ID associated with this session
-        const pendingOrderId = localStorage.getItem('pendingOrderId');
-        console.log('Order ID from metadata:', data.metadata?.orderId);
-        console.log('Order ID from localStorage:', pendingOrderId);
-        
-        // If metadata is empty or doesn't have orderId, use the one from localStorage
-        const orderId = (data.metadata?.orderId && data.metadata.orderId !== '') 
-          ? data.metadata.orderId 
-          : pendingOrderId;
-          
-        console.log('Using Order ID:', orderId);
+        const orderId = data.orderId || localStorage.getItem('pendingOrderId');
         
         if (!orderId) {
           setError('Could not find order information.');
+          setLoading(false);
           return;
         }
         
-        // Update order to 'paid' status
-        if (user) {
+        try {
+          // Get the order details
+          const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId));
+          
+          if (!orderDoc.exists()) {
+            setError('Order not found.');
+            setLoading(false);
+            return;
+          }
+          
+          const orderData = orderDoc.data();
+          
+          // Update order to 'completed' status
           await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId), {
-            status: 'paid',
+            status: 'completed',
             paidAt: serverTimestamp(),
             paymentMethod: 'stripe',
             stripeSessionId: sessionId
           });
           
-          // Attempt to enroll user in courses
-          try {
-            // Get courses from the order
-            const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId));
-            const orderData = orderDoc.data();
-            console.log('Order data:', orderData);
-            
-            // Try to get course IDs from session metadata first, then fall back to order data
-            let courseIds = [];
-            
-            // Check if metadata has non-empty courseIds array
-            if (data.metadata?.courseIds && 
-                Array.isArray(data.metadata.courseIds) && 
-                data.metadata.courseIds.length > 0) {
-              courseIds = data.metadata.courseIds;
-              console.log('Using course IDs from session metadata:', courseIds);
-            } else {
-              // Fall back to order data
-              const orderItems = orderData?.items || [];
-              courseIds = orderItems.map((item: OrderItem) => item.courseId);
-              console.log('Using course IDs from order data:', courseIds);
+          if (user) {
+            // Extract course IDs from the order items
+            let courseIds: string[] = [];
+
+            // Handle different possible formats of order items
+            if (orderData.items && Array.isArray(orderData.items)) {
+              // Standard format: items is an array of OrderItem objects with courseId property
+              courseIds = orderData.items.map((item: OrderItem) => item.courseId);
+            } else if (orderData.courses && Array.isArray(orderData.courses)) {
+              // Alternative format: courses is an array of course objects with id property
+              courseIds = orderData.courses.map((course: CourseItem) => course.id);
+            } else if (orderData.courseIds && Array.isArray(orderData.courseIds)) {
+              // Simple format: courseIds is an array of strings
+              courseIds = orderData.courseIds;
             }
-            
+
+            console.log('Extracted course IDs from order:', courseIds);
+
+            // Only proceed if we have course IDs
             if (courseIds.length === 0) {
-              throw new Error('No course IDs found in session metadata or order data');
+              console.error('No course IDs found in order data:', orderData);
+              
+              // FALLBACK: Try to extract course IDs directly from the raw order data
+              console.log('Attempting to extract course IDs from raw order data:', orderData);
+              
+              // Look for any property that might contain course IDs
+              for (const key in orderData) {
+                if (Array.isArray(orderData[key])) {
+                  console.log(`Found array in property ${key}:`, orderData[key]);
+                  
+                  // Try to extract course IDs from this array
+                  const possibleItems = orderData[key];
+                  for (const item of possibleItems) {
+                    if (typeof item === 'object' && item !== null) {
+                      if (item.courseId) {
+                        courseIds.push(item.courseId);
+                        console.log('Found courseId in item:', item.courseId);
+                      } else if (item.id) {
+                        courseIds.push(item.id);
+                        console.log('Found id in item:', item.id);
+                      }
+                    } else if (typeof item === 'string') {
+                      // This might be a direct course ID
+                      courseIds.push(item);
+                      console.log('Found possible course ID string:', item);
+                    }
+                  }
+                }
+              }
+              
+              // If we still have no course IDs, check if there's a line_items property in the Stripe data
+              if (courseIds.length === 0 && data.line_items && Array.isArray(data.line_items)) {
+                console.log('Attempting to extract course IDs from Stripe line_items:', data.line_items);
+                
+                // Try to extract course IDs from line_items
+                for (const item of data.line_items) {
+                  if (item.price && item.price.product && item.price.product.metadata) {
+                    const metadata = item.price.product.metadata;
+                    if (metadata.courseId) {
+                      courseIds.push(metadata.courseId);
+                      console.log('Found courseId in Stripe metadata:', metadata.courseId);
+                    }
+                  }
+                }
+              }
+              
+              // If we still have no course IDs, use a hardcoded fallback for testing
+              if (courseIds.length === 0) {
+                // Check localStorage for any course IDs
+                const purchasedCourseIds = localStorage.getItem('purchasedCourseIds');
+                if (purchasedCourseIds) {
+                  try {
+                    const parsedIds = JSON.parse(purchasedCourseIds);
+                    if (Array.isArray(parsedIds) && parsedIds.length > 0) {
+                      courseIds = parsedIds;
+                      console.log('Using course IDs from localStorage:', courseIds);
+                    }
+                  } catch (error) {
+                    console.error('Error parsing purchasedCourseIds from localStorage:', error);
+                  }
+                }
+              }
+              
+              // Final fallback - if we still have no course IDs, show an error
+              if (courseIds.length === 0) {
+                setError('No courses found in your order. Please contact support.');
+                setLoading(false);
+                return;
+              }
             }
             
-            // Enroll user in each course
-            console.log('Enrolling user in courses:', courseIds);
-            await enrollUserInCourses(user.uid, courseIds);
-            
-            // Fetch course details for display
-            console.log('Fetching course details for display');
-            const courseDetailsPromises = courseIds.map(async (courseId: string) => {
-              const courseDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'courses', courseId));
-              if (courseDoc.exists()) {
-                const courseData = courseDoc.data();
-                return {
-                  id: courseId,
-                  title: courseData.title || '',
-                  price: courseData.price || 0,
-                  description: courseData.description || '',
-                  imageUrl: courseData.imageUrl || '',
-                  instructor: courseData.instructor || ''
-                } as CourseDetails;
+            // Enroll user in courses
+            console.log('Attempting to enroll user in courses:', courseIds);
+            try {
+              const enrollmentResult = await enrollUserInCourses(user.uid, courseIds);
+              
+              if (enrollmentResult.success) {
+                console.log('Successfully enrolled user in courses:', courseIds);
+                
+                // Fetch course details for display
+                const enrolledCoursesDetails = await Promise.all(
+                  courseIds.map(async (courseId: string) => {
+                    try {
+                      const courseDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'courses', courseId));
+                      if (courseDoc.exists()) {
+                        const courseData = courseDoc.data();
+                        return {
+                          id: courseId,
+                          title: courseData.title || '',
+                          description: courseData.description || '',
+                          instructor: courseData.instructor || '',
+                          thumbnail: courseData.thumbnail || '',
+                          slug: courseData.slug || courseId // Use courseId as fallback if slug is not available
+                        } as CourseDetails;
+                      }
+                    } catch (error) {
+                      console.error(`Error fetching course ${courseId}:`, error);
+                    }
+                    return null;
+                  })
+                );
+                
+                // Filter out any null values and set the enrolled courses state
+                const validCourses = enrolledCoursesDetails.filter(course => course !== null) as CourseDetails[];
+                console.log('Enrolled courses:', validCourses);
+                setEnrolledCourses(validCourses);
+                console.log('Setting enrolled courses:', validCourses);
+                setEnrollmentStatus('success');
+                console.log('Setting enrollment status to success');
+                
+                // Increment enrolled count for each course
+                for (const courseId of courseIds) {
+                  try {
+                    await incrementEnrolledCount(courseId);
+                  } catch (error) {
+                    console.error(`Error incrementing enrolled count for course ${courseId}:`, error);
+                  }
+                }
+                
+                // Clear the cart and pending order ID
+                clearCart();
+                localStorage.removeItem('pendingOrderId');
+                localStorage.removeItem('purchasedCourseIds');
+              } else {
+                console.error('Failed to enroll user in courses:', enrollmentResult.error);
+                
+                // Try a direct enrollment as a fallback
+                console.log('Attempting direct enrollment as fallback...');
+                try {
+                  // Get the user document reference
+                  const userRef = doc(db, ACADEMIES_COLLECTION, ACADEMY, "users", user.uid);
+                  
+                  // Check if user exists
+                  const userDoc = await getDoc(userRef);
+                  if (!userDoc.exists()) {
+                    // Create user if they don't exist
+                    await setDoc(userRef, {
+                      email: user.email,
+                      enrolledCourses: courseIds,
+                      createdAt: serverTimestamp()
+                    });
+                    console.log('Created new user and enrolled in courses:', courseIds);
+                  } else {
+                    // Update existing user
+                    await updateDoc(userRef, {
+                      enrolledCourses: arrayUnion(...courseIds)
+                    });
+                    console.log('Updated existing user with courses:', courseIds);
+                  }
+                  
+                  // Fetch course details for display
+                  const enrolledCoursesDetails = await Promise.all(
+                    courseIds.map(async (courseId: string) => {
+                      try {
+                        const courseDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'courses', courseId));
+                        if (courseDoc.exists()) {
+                          const courseData = courseDoc.data();
+                          return {
+                            id: courseId,
+                            title: courseData.title || '',
+                            description: courseData.description || '',
+                            instructor: courseData.instructor || '',
+                            thumbnail: courseData.thumbnail || '',
+                            slug: courseData.slug || courseId
+                          } as CourseDetails;
+                        }
+                      } catch (error) {
+                        console.error(`Error fetching course ${courseId}:`, error);
+                      }
+                      return null;
+                    })
+                  );
+                  
+                  // Filter out any null values and set the enrolled courses state
+                  const validCourses = enrolledCoursesDetails.filter(course => course !== null) as CourseDetails[];
+                  setEnrolledCourses(validCourses);
+                  setEnrollmentStatus('success');
+                  
+                  // Increment enrolled count for each course
+                  for (const courseId of courseIds) {
+                    try {
+                      await incrementEnrolledCount(courseId);
+                    } catch (error) {
+                      console.error(`Error incrementing enrolled count for course ${courseId}:`, error);
+                    }
+                  }
+                  
+                  // Clear the cart and pending order ID
+                  clearCart();
+                  localStorage.removeItem('pendingOrderId');
+                  localStorage.removeItem('purchasedCourseIds');
+                } catch (fallbackError) {
+                  console.error('Fallback enrollment failed:', fallbackError);
+                  setError('Payment successful, but there was an issue enrolling you in some courses. Our team has been notified and will fix this shortly.');
+                  setEnrollmentStatus('error');
+                  
+                  // Log this to a special collection for admin attention
+                  await addDoc(collection(db, ACADEMIES_COLLECTION, ACADEMY, 'enrollmentErrors'), {
+                    userId: user.uid,
+                    orderId: orderId,
+                    error: `Original error: ${enrollmentResult.error}. Fallback error: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`,
+                    timestamp: serverTimestamp()
+                  });
+                }
               }
-              return null;
-            });
-            
-            const courseDetails = (await Promise.all(courseDetailsPromises)).filter(Boolean) as CourseDetails[];
-            console.log('Course details:', courseDetails);
-            
-            // Update order to 'completed' status
-            await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', orderId), {
-              status: 'completed',
-              completedAt: serverTimestamp()
-            });
-            
-            setEnrolledCourses(courseDetails);
-            setEnrollmentStatus('success');
-            
-            // Clear the pending order ID from localStorage
-            localStorage.removeItem('pendingOrderId');
-            console.log('Cleared pendingOrderId from localStorage');
-          } catch (enrollError: unknown) {
-            console.error('Error enrolling user in courses:', enrollError);
-            setError('Payment successful, but there was an issue enrolling you in some courses. Our team has been notified and will fix this shortly.');
-            setEnrollmentStatus('error');
-            
-            // Log this to a special collection for admin attention
-            await addDoc(collection(db, ACADEMIES_COLLECTION, ACADEMY, 'enrollmentErrors'), {
-              userId: user.uid,
-              orderId: orderId,
-              error: enrollError instanceof Error ? enrollError.message : String(enrollError),
-              timestamp: serverTimestamp()
-            });
+            } catch (enrollError) {
+              console.error('Error in enrollment process:', enrollError);
+              setError('Payment successful, but there was an issue enrolling you in some courses. Our team has been notified and will fix this shortly.');
+              setEnrollmentStatus('error');
+              
+              // Log this to a special collection for admin attention
+              await addDoc(collection(db, ACADEMIES_COLLECTION, ACADEMY, 'enrollmentErrors'), {
+                userId: user.uid,
+                orderId: orderId,
+                error: enrollError instanceof Error ? enrollError.message : 'Unknown enrollment error',
+                timestamp: serverTimestamp()
+              });
+            }
+          } else {
+            setError('User not authenticated. Please log in to complete enrollment.');
           }
-        } else {
-          setError('User not authenticated. Please log in to complete enrollment.');
+        } catch (error) {
+          console.error('Error processing successful payment:', error);
+          setError('Error processing payment. Please contact support.');
+          setEnrollmentStatus('error');
         }
+        
+        setLoading(false);
       } else {
         setError('Payment verification failed. Please contact support.');
+        setLoading(false);
       }
     } catch (err) {
       console.error('Error verifying session:', err);
       setError('Error verifying payment. Please contact support.');
-    } finally {
-      // Set loading to false when verification is complete
       setLoading(false);
     }
   };
+
+  // Update the loadCoursesFromLocalStorage function to ensure it enrolls users in courses
+  const loadCoursesFromLocalStorage = async () => {
+    console.log('Attempting to load courses from localStorage');
+    const purchasedCourseIds = localStorage.getItem('purchasedCourseIds');
+    
+    if (purchasedCourseIds && user) {
+      try {
+        const courseIds = JSON.parse(purchasedCourseIds);
+        console.log('Found course IDs in localStorage:', courseIds);
+        
+        if (Array.isArray(courseIds) && courseIds.length > 0) {
+          // First, enroll the user in these courses
+          console.log('Enrolling user in courses from localStorage:', courseIds);
+          try {
+            // Try using the enrollUserInCourses function first
+            const enrollmentResult = await enrollUserInCourses(user.uid, courseIds);
+            
+            if (!enrollmentResult.success) {
+              console.error('Failed to enroll user using enrollUserInCourses:', enrollmentResult.error);
+              
+              // Try direct enrollment as fallback
+              console.log('Attempting direct enrollment as fallback...');
+              const userRef = doc(db, ACADEMIES_COLLECTION, ACADEMY, "users", user.uid);
+              
+              // Check if user exists
+              const userDoc = await getDoc(userRef);
+              if (!userDoc.exists()) {
+                // Create user if they don't exist
+                await setDoc(userRef, {
+                  email: user.email,
+                  enrolledCourses: courseIds,
+                  createdAt: serverTimestamp()
+                });
+                console.log('Created new user and enrolled in courses:', courseIds);
+              } else {
+                // Update existing user
+                await updateDoc(userRef, {
+                  enrolledCourses: arrayUnion(...courseIds)
+                });
+                console.log('Updated existing user with courses:', courseIds);
+              }
+            } else {
+              console.log('Successfully enrolled user in courses using enrollUserInCourses');
+            }
+          } catch (enrollError) {
+            console.error('Error enrolling user in courses from localStorage:', enrollError);
+          }
+          
+          // Fetch course details for these IDs
+          const enrolledCoursesDetails = await Promise.all(
+            courseIds.map(async (courseId: string) => {
+              try {
+                const courseDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'courses', courseId));
+                if (courseDoc.exists()) {
+                  const courseData = courseDoc.data();
+                  return {
+                    id: courseId,
+                    title: courseData.title || courseId,
+                    description: courseData.description || '',
+                    instructor: courseData.instructor || '',
+                    thumbnail: courseData.thumbnail || '',
+                    slug: courseData.slug || courseId
+                  } as CourseDetails;
+                }
+              } catch (error) {
+                console.error(`Error fetching course ${courseId}:`, error);
+              }
+              
+              // Fallback if course fetch fails
+              return {
+                id: courseId,
+                title: `Course ${courseId}`,
+                description: 'Course description not available',
+                instructor: '',
+                slug: courseId
+              } as CourseDetails;
+            })
+          );
+          
+          // Filter out any null values
+          const validCourses = enrolledCoursesDetails.filter(course => course !== null) as CourseDetails[];
+          console.log('Loaded courses from localStorage:', validCourses);
+          
+          // Set the enrolled courses
+          setEnrolledCourses(validCourses);
+          setEnrollmentStatus('success');
+          
+          // Increment enrolled count for each course
+          for (const courseId of courseIds) {
+            try {
+              await incrementEnrolledCount(courseId);
+            } catch (error) {
+              console.error(`Error incrementing enrolled count for course ${courseId}:`, error);
+            }
+          }
+          
+          return true;
+        }
+      } catch (error) {
+        console.error('Error parsing purchasedCourseIds from localStorage:', error);
+      }
+    } else if (!user) {
+      console.error('Cannot enroll courses: User not authenticated');
+    }
+    
+    console.log('No valid course IDs found in localStorage or user not authenticated');
+    return false;
+  };
+
+  // Call this function immediately when the component mounts
+  useEffect(() => {
+    if (enrolledCourses.length === 0 && !loading) {
+      loadCoursesFromLocalStorage();
+    }
+  }, [enrolledCourses.length, loading]);
 
   if (loading) {
     return (
@@ -589,46 +889,50 @@ export const Return = () => {
                 values={{ email: customerEmail }}
               />
             </p>
-            {enrollmentStatus === 'success' && (
-              <div className="mb-6">
-                <p className="text-green-600 mb-4 text-center font-semibold">
-                  <FormattedMessage id="payment.return.enrollment.success" />
-                </p>
-                
-                {enrolledCourses.length > 0 && (
-                  <div className="mt-6 border rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 px-4 py-3 border-b">
-                      <h3 className="text-sm font-medium text-gray-700">
-                        <FormattedMessage id="payment.return.courses.title" />
+            <div className="mb-6">
+              {enrollmentStatus === 'success' && (
+                <div className="mb-6">
+                  <p className="text-green-600 mb-4 text-center font-semibold">
+                    <FormattedMessage id="payment.return.enrollment.success" defaultMessage="You have been successfully enrolled in your courses!" />
+                  </p>
+                  
+                  {enrolledCourses.length > 0 ? (
+                    <div className="mt-6">
+                      <h3 className="text-lg font-medium text-gray-800 mb-3 text-center">
+                        <FormattedMessage id="payment.return.courses.title" defaultMessage="Your Courses" />
                       </h3>
+                      <div className="space-y-4">
+                        {enrolledCourses.map(course => {
+                          // Use the slug if available, otherwise generate a slug from the title or use the ID
+                          const courseSlug = course.slug || 
+                            (course.title ? course.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : course.id);
+                          
+                          return (
+                            <div key={course.id} className="border rounded-lg p-4 bg-gray-50 flex items-center justify-between">
+                              <div className="flex items-center">
+                                <BookOpen className="h-5 w-5 text-blue-500 mr-3 flex-shrink-0" />
+                                <div>
+                                  <h4 className="font-medium text-gray-900">{course.title}</h4>
+                                  {course.instructor && (
+                                    <p className="text-sm text-gray-500">{course.instructor}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <Link 
+                                to={`/courses/${courseSlug}/learn`} 
+                                className="ml-4 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                              >
+                                <FormattedMessage id="payment.return.start.learning" defaultMessage="Start Learning" />
+                              </Link>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <ul className="divide-y divide-gray-200">
-                      {enrolledCourses.map(course => {
-                        // Use the slug if available, otherwise generate a slug from the title or use the ID
-                        const courseSlug = course.slug || 
-                          (course.title ? course.title.toLowerCase()
-                            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents/diacritics
-                            .replace(/\s+/g, '-')
-                            .replace(/[^a-z0-9-]/g, '') 
-                            : course.id);
-                        
-                        return (
-                          <li key={course.id} className="px-4 py-3 flex items-center">
-                            <BookOpen className="h-5 w-5 text-blue-500 mr-3" />
-                            <Link 
-                              to={`/courses/${courseSlug}/learn`} 
-                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              {course.title}
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
+                  ) : null}
+                </div>
+              )}
+            </div>
             {enrollmentStatus === 'error' && (
               <p className="text-yellow-600 mb-4 text-center">
                 <FormattedMessage id="payment.return.enrollment.error" />
@@ -684,7 +988,7 @@ export const Return = () => {
             )}
             <div className="flex justify-center">
               <Button 
-                onClick={() => navigate('/checkout')} 
+                onClick={() => navigate('/cart')} 
                 className="flex items-center"
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />

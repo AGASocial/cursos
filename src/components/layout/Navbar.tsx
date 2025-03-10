@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, UserPlus, Shield, BookOpen } from 'lucide-react';
-import { FormattedMessage } from 'react-intl';
-import { Button } from '../ui/Button';
-import { useAuth } from '../../contexts/AuthContext';
-import { CartDropdown } from '../cart/CartDropdown';
-import { LanguageSelector } from './LanguageSelector';
-import { ProfileDropdown } from './ProfileDropdown';
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { LogIn, UserPlus, Shield, BookOpen } from "lucide-react";
+import { FormattedMessage } from "react-intl";
+import { Button } from "../ui/Button";
+import { useAuth } from "../../contexts/AuthContext";
+import { CartDropdown } from "../cart/CartDropdown";
+import { LanguageSelector } from "./LanguageSelector";
+import { ProfileDropdown } from "./ProfileDropdown";
 
 export const Navbar = () => {
   const { user, isAdmin } = useAuth();
@@ -17,8 +17,8 @@ export const Navbar = () => {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-20 items-center justify-between">
           <div className="flex items-center">
-            <Link 
-              to="/" 
+            <Link
+              to="/"
               className="flex items-center space-x-3 text-gray-900 hover:text-indigo-600 transition-colors duration-200"
             >
               <div className="p-2 rounded-xl bg-indigo-50 transform transition-transform hover:scale-110">
@@ -29,10 +29,10 @@ export const Navbar = () => {
               </span>
             </Link>
           </div>
-          
+
           <div className="flex items-center space-x-6">
-            <Link 
-              to="/courses" 
+            <Link
+              to="/courses"
               className="text-gray-600 hover:text-indigo-600 font-medium transition-colors duration-200"
             >
               <FormattedMessage id="nav.courses" />
@@ -46,7 +46,9 @@ export const Navbar = () => {
                       className="flex items-center space-x-2 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition-colors duration-200"
                     >
                       <Shield className="h-4 w-4 text-indigo-600" />
-                      <span className="text-indigo-600"><FormattedMessage id="nav.admin" /></span>
+                      <span className="text-indigo-600">
+                        <FormattedMessage id="nav.admin" />
+                      </span>
                     </Button>
                   </Link>
                 )}
@@ -57,20 +59,22 @@ export const Navbar = () => {
             ) : (
               <>
                 <Link to="/login">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex items-center space-x-2 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition-colors duration-200"
                   >
                     <LogIn className="h-4 w-4 text-indigo-600" />
-                    <span className="text-indigo-600"><FormattedMessage id="nav.login" /></span>
+                    <span className="text-indigo-600">
+                      <FormattedMessage id="nav.login" />
+                    </span>
                   </Button>
                 </Link>
                 <Link to="/signup">
-                  <Button 
-                    className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow transition-all duration-200"
-                  >
+                  <Button className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow transition-all duration-200">
                     <UserPlus className="h-4 w-4" />
-                    <span><FormattedMessage id="nav.signup" /></span>
+                    <span>
+                      <FormattedMessage id="nav.signup" />
+                    </span>
                   </Button>
                 </Link>
               </>

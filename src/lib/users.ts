@@ -176,11 +176,15 @@ export const enrollUserInCourses = async (
   courseIds: string[]
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    console.log('Enrolling user in courses - userId:', userId, 'courseIds:', courseIds);
+    
     if (!userId) {
+      console.error('No user ID provided for enrollment');
       return { success: false, error: "Se requiere ID de usuario" };
     }
 
     if (!courseIds || courseIds.length === 0) {
+      console.error('No course IDs provided for enrollment');
       return { success: false, error: "No se proporcionaron IDs de cursos" };
     }
 
@@ -190,6 +194,7 @@ export const enrollUserInCourses = async (
     // Check if user exists
     const userDoc = await getDoc(userRef);
     if (!userDoc.exists()) {
+      console.error('User not found for enrollment:', userId);
       return { success: false, error: "Usuario no encontrado" };
     }
 
@@ -202,13 +207,13 @@ export const enrollUserInCourses = async (
       courseId => !currentEnrolledCourses.includes(courseId)
     );
     
-    console.log('Cursos actualmente inscritos:', currentEnrolledCourses);
-    console.log('Cursos a inscribir:', courseIds);
-    console.log('Nuevos cursos a inscribir:', newCourseIds);
+    console.log('Current enrolled courses:', currentEnrolledCourses);
+    console.log('Courses to enroll:', courseIds);
+    console.log('New courses to enroll:', newCourseIds);
     
     // If all courses are already enrolled, return success
     if (newCourseIds.length === 0) {
-      console.log('El usuario ya está inscrito en todos los cursos especificados');
+      console.log('User is already enrolled in all specified courses');
       return { success: true };
     }
 
@@ -216,10 +221,11 @@ export const enrollUserInCourses = async (
     await updateDoc(userRef, {
       enrolledCourses: arrayUnion(...newCourseIds)
     });
-
+    
+    console.log('Successfully enrolled user in courses:', newCourseIds);
     return { success: true };
   } catch (error) {
-    console.error("Error al inscribir usuario en cursos:", error);
+    console.error("Error enrolling user in courses:", error);
     return {
       success: false,
       error:
