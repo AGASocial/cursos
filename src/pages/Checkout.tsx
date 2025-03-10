@@ -11,13 +11,18 @@ import { FormattedMessage } from "react-intl";
 import { Button } from "../components/ui/Button";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
-import { createOrder, convertCartOrderToPending, approveOrder } from "../lib/orders";
+import {
+  createOrder,
+  convertCartOrderToPending,
+  approveOrder,
+} from "../lib/orders";
 import { useDispatch } from "react-redux";
 import { setAmount, setCourseName } from "../store/features/paymentSlice";
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
-const ACADEMIES_COLLECTION = import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || 'agaacademies';
+const ACADEMIES_COLLECTION =
+  import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || "agaacademies";
 const ACADEMY = import.meta.env.VITE_AGA_ACADEMY;
 
 export const Checkout = () => {
@@ -51,9 +56,12 @@ export const Checkout = () => {
       // First, try to convert an existing cart order to pending
       const cartOrderResult = await convertCartOrderToPending(user.uid);
       let orderId;
-      
+
       if (cartOrderResult.success) {
-        console.log("Converted cart order to pending:", cartOrderResult.orderId);
+        console.log(
+          "Converted cart order to pending:",
+          cartOrderResult.orderId
+        );
         orderId = cartOrderResult.orderId;
       } else {
         // If no cart order exists, create a new pending order
@@ -69,13 +77,13 @@ export const Checkout = () => {
           setLoading(false);
           return;
         }
-        
+
         orderId = orderResult.orderId;
       }
-      
+
       // Now approve the order to enroll the user in the courses
       const approvalResult = await approveOrder(orderId!);
-      
+
       if (!approvalResult.success) {
         setError(approvalResult.error || "payment.error.approval");
         setLoading(false);
@@ -107,57 +115,78 @@ export const Checkout = () => {
       );
 
       // Create an array of course IDs to be purchased
-      const courseIds = cart.items.map(item => item.id);
-      
+      const courseIds = cart.items.map((item) => item.id);
+
       // First, try to convert an existing cart order to pending
       const cartOrderResult = await convertCartOrderToPending(user.uid);
       let orderId;
-      
+
       if (cartOrderResult.success && cartOrderResult.orderId) {
-        console.log("Converted cart order to pending:", cartOrderResult.orderId);
+        console.log(
+          "Converted cart order to pending:",
+          cartOrderResult.orderId
+        );
         orderId = cartOrderResult.orderId;
       } else {
         // Check if there's an existing pending order in localStorage
-        const existingOrderId = localStorage.getItem('pendingOrderId');
-        
+        const existingOrderId = localStorage.getItem("pendingOrderId");
+
         if (existingOrderId) {
           try {
             // Try to get the existing order
-            const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrderId));
-            
+            const orderDoc = await getDoc(
+              doc(db, ACADEMIES_COLLECTION, ACADEMY, "orders", existingOrderId)
+            );
+
             if (orderDoc.exists()) {
               const orderData = orderDoc.data();
-              
+
               // Only reuse the order if it's still pending and belongs to this user
-              if (orderData.status === 'pending' && orderData.userId === user.uid) {
+              if (
+                orderData.status === "pending" &&
+                orderData.userId === user.uid
+              ) {
                 console.log("Reusing existing pending order:", existingOrderId);
-                
+
                 // Update the order with new items and timestamp
-                await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrderId), {
-                  items: cart.items.map(item => ({
-                    courseId: item.id,
-                    title: item.title,
-                    price: item.price
-                  })),
-                  total: cart.total,
-                  updatedAt: serverTimestamp()
-                });
-                
+                await updateDoc(
+                  doc(
+                    db,
+                    ACADEMIES_COLLECTION,
+                    ACADEMY,
+                    "orders",
+                    existingOrderId
+                  ),
+                  {
+                    items: cart.items.map((item) => ({
+                      courseId: item.id,
+                      title: item.title,
+                      price: item.price,
+                    })),
+                    total: cart.total,
+                    updatedAt: serverTimestamp(),
+                  }
+                );
+
                 orderId = existingOrderId;
               } else {
                 // Order exists but is not pending or belongs to another user
-                console.log("Existing order is not pending or belongs to another user, creating new order");
+                console.log(
+                  "Existing order is not pending or belongs to another user, creating new order"
+                );
                 const orderResult = await createOrder(
                   user.uid,
                   user.email!,
                   cart.items,
                   cart.total
                 );
-                
+
                 if (!orderResult.success) {
-                  throw new Error(orderResult.error || "payment.error.checkout");
+                  throw new Error(
+                    orderResult.error || "payment.error.checkout"
+                  );
                 }
-                
+
                 orderId = orderResult.orderId;
               }
             } else {
@@ -169,11 +198,11 @@ export const Checkout = () => {
                 cart.items,
                 cart.total
               );
-              
+
               if (!orderResult.success) {
                 throw new Error(orderResult.error || "payment.error.checkout");
               }
-              
+
               orderId = orderResult.orderId;
             }
           } catch (orderError) {
@@ -185,11 +214,11 @@ export const Checkout = () => {
               cart.items,
               cart.total
             );
-            
+
             if (!orderResult.success) {
               throw new Error(orderResult.error || "payment.error.checkout");
             }
-            
+
             orderId = orderResult.orderId;
           }
         } else {
@@ -201,39 +230,39 @@ export const Checkout = () => {
             cart.items,
             cart.total
           );
-          
+
           if (!orderResult.success) {
             throw new Error(orderResult.error || "payment.error.checkout");
           }
-          
+
           orderId = orderResult.orderId;
         }
       }
-      
+
       console.log("Using order ID for payment:", orderId);
-      
+
       // Store the order ID in localStorage for fallback
       if (orderId) {
-        localStorage.setItem('pendingOrderId', orderId);
-        
+        localStorage.setItem("pendingOrderId", orderId);
+
         // Store the course IDs in localStorage for retrieval after payment
-        localStorage.setItem('purchasedCourseIds', JSON.stringify(courseIds));
+        localStorage.setItem("purchasedCourseIds", JSON.stringify(courseIds));
 
         // Store the amount in Redux
         dispatch(setAmount(totalAmount));
-        
+
         // Store the course name in Redux - create a complete list of course titles
         if (cart.items.length > 0) {
           let courseName;
-          
+
           if (cart.items.length === 1) {
             // If only one course, use its title
             courseName = cart.items[0].title;
           } else {
             // If multiple courses, list all titles
-            courseName = cart.items.map(item => item.title).join(", ");
+            courseName = cart.items.map((item) => item.title).join(", ");
           }
-          
+
           dispatch(setCourseName(courseName));
         }
 
@@ -242,7 +271,6 @@ export const Checkout = () => {
       } else {
         throw new Error("Failed to create or retrieve order ID");
       }
-      
     } catch (error) {
       console.error("Error initiating checkout:", error);
       setError("payment.error.checkout");
