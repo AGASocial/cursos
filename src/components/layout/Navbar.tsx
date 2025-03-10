@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { LogIn, UserPlus, Shield, BookOpen } from "lucide-react";
 import { FormattedMessage } from "react-intl";
 import { Button } from "../ui/Button";
@@ -10,7 +9,6 @@ import { ProfileDropdown } from "./ProfileDropdown";
 
 export const Navbar = () => {
   const { user, isAdmin } = useAuth();
-  const navigate = useNavigate();
 
   return (
     <nav className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm backdrop-blur-sm bg-white/90">
