@@ -37,7 +37,7 @@ export const PaymentProcess = () => {
       console.log("Using order ID from URL:", orderIdFromUrl);
     } else {
       // Fallback to localStorage
-      const storedOrderId = localStorage.getItem("pendingOrderId");
+      const storedOrderId = localStorage.getItem("currentOrderId");
       if (storedOrderId) {
         setOrderId(storedOrderId);
         console.log("Using order ID from localStorage:", storedOrderId);

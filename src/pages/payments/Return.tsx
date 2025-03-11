@@ -74,7 +74,7 @@ export const Return = () => {
     
     // Log localStorage state for debugging
     console.log('localStorage state:', {
-      pendingOrderId: localStorage.getItem('pendingOrderId'),
+      currentOrderId: localStorage.getItem('currentOrderId'),
       purchasedCourseIds: localStorage.getItem('purchasedCourseIds'),
       cart: localStorage.getItem('cart')
     });
@@ -107,9 +107,9 @@ export const Return = () => {
       // Handle canceled payment scenario
       
       // 1. Get the pending order ID from localStorage
-      const pendingOrderId = localStorage.getItem('pendingOrderId');
+      const currentOrderId = localStorage.getItem('currentOrderId');
       
-      if (!pendingOrderId) {
+      if (!currentOrderId) {
         setError('order.not_found');
         setLoading(false);
         return;
@@ -118,11 +118,11 @@ export const Return = () => {
       // 2. Fetch the pending order and update its status to "cart"
       const updateOrderToCart = async () => {
         try {
-          console.log('Updating order to cart status:', pendingOrderId);
+          console.log('Updating order to cart status:', currentOrderId);
           const academyId = ACADEMY;
           
           // Update the order status to "cart"
-          const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', pendingOrderId);
+          const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', currentOrderId);
           
           await updateDoc(orderRef, {
             status: "cart",
@@ -138,7 +138,7 @@ export const Return = () => {
           const orderDoc = await getDoc(orderRef);
           
           if (!orderDoc.exists()) {
-            console.error('Order not found after update:', pendingOrderId);
+            console.error('Order not found after update:', currentOrderId);
             setError('order.pending_not_found');
             setLoading(false);
             return;
@@ -463,7 +463,7 @@ export const Return = () => {
       
       if (data.status === 'complete') {
         // Get the order ID associated with this session
-        const orderId = data.orderId || localStorage.getItem('pendingOrderId');
+        const orderId = data.orderId || localStorage.getItem('currentOrderId');
         
         if (!orderId) {
           setError('Could not find order information.');
@@ -632,7 +632,7 @@ export const Return = () => {
                 
                 // Clear the cart and pending order ID
                 clearCart();
-                localStorage.removeItem('pendingOrderId');
+                localStorage.removeItem('currentOrderId');
                 localStorage.removeItem('purchasedCourseIds');
               } else {
                 console.error('Failed to enroll user in courses:', enrollmentResult.error);
@@ -700,7 +700,7 @@ export const Return = () => {
                   
                   // Clear the cart and pending order ID
                   clearCart();
-                  localStorage.removeItem('pendingOrderId');
+                  localStorage.removeItem('currentOrderId');
                   localStorage.removeItem('purchasedCourseIds');
                 } catch (fallbackError) {
                   console.error('Fallback enrollment failed:', fallbackError);

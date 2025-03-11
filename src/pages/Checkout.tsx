@@ -111,7 +111,7 @@ export const Checkout = () => {
         orderId = cartOrderResult.orderId;
       } else {
         // Check if there's an existing pending order in localStorage
-        const existingOrderId = localStorage.getItem("pendingOrderId");
+        const existingOrderId = localStorage.getItem("currentOrderId");
 
         if (existingOrderId) {
           try {
@@ -225,7 +225,7 @@ export const Checkout = () => {
 
       // Store the order ID in localStorage for fallback
       if (orderId) {
-        localStorage.setItem("pendingOrderId", orderId);
+        localStorage.setItem("currentOrderId", orderId);
 
         // Store the course IDs in localStorage for retrieval after payment
         localStorage.setItem("purchasedCourseIds", JSON.stringify(courseIds));

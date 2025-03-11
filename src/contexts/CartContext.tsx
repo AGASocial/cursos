@@ -18,7 +18,7 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: 'ADD_ITEM'; payload: CartItem }
+  | { type: 'ADD_ITEM'; payload: CartItem; user?: User | null }
   | { type: 'REMOVE_ITEM'; payload: string; user?: User | null }
   | { type: 'CLEAR_CART' }
   | { type: 'SET_CART'; payload: { items: CartItem[], total: number } };
@@ -31,16 +31,167 @@ const CartContext = createContext<{
   loadCartFromFirebase: (userId: string) => Promise<boolean>;
 } | null>(null);
 
-const cartReducer = (state: CartState, action: CartAction): CartState => {
+// Add a static property to the cartReducer function
+interface CartReducerWithFlag {
+  (state: CartState, action: CartAction): CartState;
+  isCreatingOrder?: boolean;
+}
+
+const cartReducer: CartReducerWithFlag = (state: CartState, action: CartAction): CartState => {
   switch (action.type) {
-    case 'ADD_ITEM':
+    case 'ADD_ITEM': {
       if (state.items.some(item => item.id === action.payload.id)) {
         return state;
       }
-      return {
+      
+      const newState = {
         items: [...state.items, action.payload],
         total: state.total + action.payload.price
       };
+      
+      // Update localStorage with the new cart state
+      localStorage.setItem('cart', JSON.stringify(newState));
+      
+      // Check if we have a user and cartOrderId
+      if (action.user && action.user.uid) {
+        // Get the current cart order ID from localStorage
+        const currentOrderId = localStorage.getItem('currentOrderId');
+        
+        // Use a static flag to prevent multiple simultaneous order creations
+        if (cartReducer.isCreatingOrder) {
+          console.log('Order creation already in progress, skipping');
+          return newState;
+        }
+        
+        // If we have a cart order ID, update it; otherwise create a new one
+        const updateOrCreateCartOrder = async () => {
+          try {
+            // Set the flag to indicate we're creating/updating an order
+            cartReducer.isCreatingOrder = true;
+            
+            if (currentOrderId) {
+              // Verify the order exists before updating
+              try {
+                const orderRef = doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', currentOrderId);
+                const orderDoc = await getDoc(orderRef);
+                
+                if (orderDoc.exists()) {
+                  const orderData = orderDoc.data();
+                  
+                  // Only update if this is the user's cart order
+                  if (orderData.userId === action.user!.uid && orderData.status === 'cart') {
+                    // Create updated items array
+                    const updatedItems = newState.items.map(item => ({
+                      courseId: item.id,
+                      title: item.title,
+                      price: item.price
+                    }));
+                    
+                    // Update the order in Firebase
+                    await updateDoc(orderRef, {
+                      items: updatedItems,
+                      total: newState.total,
+                      updatedAt: new Date()
+                    });
+                    
+                    console.log('Successfully updated cart order in Firebase');
+                  } else {
+                    console.log('Order exists but belongs to another user or is not a cart order, creating new order');
+                    await createNewOrder();
+                  }
+                } else {
+                  console.log('Order ID exists in localStorage but not in Firebase, creating new order');
+                  await createNewOrder();
+                }
+              } catch (error) {
+                console.error('Error verifying existing order:', error);
+                await createNewOrder();
+              }
+            } else {
+              await createNewOrder();
+            }
+          } catch (error) {
+            console.error('Error updating/creating cart order:', error);
+          } finally {
+            // Clear the flag when we're done
+            cartReducer.isCreatingOrder = false;
+          }
+        };
+        
+        // Helper function to create a new order
+        const createNewOrder = async () => {
+          // Check if there's already a cart order for this user
+          try {
+            const ordersRef = collection(db, ACADEMIES_COLLECTION, ACADEMY, 'orders');
+            const q = query(
+              ordersRef,
+              where('userId', '==', action.user!.uid),
+              where('status', '==', 'cart')
+            );
+            
+            const snapshot = await getDocs(q);
+            
+            if (!snapshot.empty) {
+              // Use the existing cart order
+              const existingOrder = snapshot.docs[0];
+              localStorage.setItem('currentOrderId', existingOrder.id);
+              console.log('Found existing cart order, using it:', existingOrder.id);
+              
+              // Update the existing order
+              const updatedItems = newState.items.map(item => ({
+                courseId: item.id,
+                title: item.title,
+                price: item.price
+              }));
+              
+              await updateDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', existingOrder.id), {
+                items: updatedItems,
+                total: newState.total,
+                updatedAt: new Date()
+              });
+              
+              console.log('Successfully updated existing cart order');
+            } else {
+              // Create a new cart order
+              const result = await createOrUpdateCartOrder(
+                action.user!.uid,
+                action.user!.email || '',
+                newState.items,
+                newState.total
+              );
+              
+              if (result.success && result.orderId) {
+                // Store the new order ID in localStorage
+                localStorage.setItem('currentOrderId', result.orderId);
+                console.log('Created new cart order in Firebase:', result.orderId);
+              } else {
+                console.error('Failed to create cart order:', result.error);
+              }
+            }
+          } catch (error) {
+            console.error('Error checking for existing cart orders:', error);
+            
+            // Fallback to direct creation
+            const result = await createOrUpdateCartOrder(
+              action.user!.uid,
+              action.user!.email || '',
+              newState.items,
+              newState.total
+            );
+            
+            if (result.success && result.orderId) {
+              localStorage.setItem('currentOrderId', result.orderId);
+              console.log('Created new cart order in Firebase (fallback):', result.orderId);
+            }
+          }
+        };
+        
+        // Execute the update/create function
+        updateOrCreateCartOrder();
+      }
+      
+      return newState;
+    }
     case 'REMOVE_ITEM': {
       const item = state.items.find(item => item.id === action.payload);
       
@@ -54,12 +205,12 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       localStorage.setItem('cart', JSON.stringify(newState));
       
       // Get the current cart order ID from localStorage
-      const cartOrderId = localStorage.getItem('cartOrderId');
+      const currentOrderId = localStorage.getItem('currentOrderId');
       
       // If we have a cart order ID, update the Firebase order
-      if (cartOrderId) {
+      if (currentOrderId) {
         // Update the order in Firebase
-        const orderRef = doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', cartOrderId);
+        const orderRef = doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', currentOrderId);
         
         // Create a new items array without the removed item
         const updatedItems = newState.items.map(item => ({
@@ -351,7 +502,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state, user]);
 
   const addItem = (item: CartItem) => {
-    dispatch({ type: 'ADD_ITEM', payload: item });
+    dispatch({ type: 'ADD_ITEM', payload: item, user });
   };
 
   const removeItem = useCallback((id: string) => {
