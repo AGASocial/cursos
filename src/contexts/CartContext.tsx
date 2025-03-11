@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import type { Course } from '../lib/courses';
 import { createOrUpdateCartOrder } from '../lib/orders';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, QuerySnapshot, DocumentData, updateDoc } from 'firebase/firestore';
+import { User } from 'firebase/auth';
 
 const ACADEMIES_COLLECTION = import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || 'agaacademies';
 const ACADEMY = import.meta.env.VITE_AGA_ACADEMY;
@@ -18,7 +19,7 @@ interface CartState {
 
 type CartAction =
   | { type: 'ADD_ITEM'; payload: CartItem }
-  | { type: 'REMOVE_ITEM'; payload: string }
+  | { type: 'REMOVE_ITEM'; payload: string; user?: User | null }
   | { type: 'CLEAR_CART' }
   | { type: 'SET_CART'; payload: { items: CartItem[], total: number } };
 
@@ -42,10 +43,44 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       };
     case 'REMOVE_ITEM': {
       const item = state.items.find(item => item.id === action.payload);
-      return {
+      
+      // Create the new state
+      const newState = {
         items: state.items.filter(item => item.id !== action.payload),
         total: state.total - (item?.price || 0)
       };
+      
+      // Update localStorage with the new cart state
+      localStorage.setItem('cart', JSON.stringify(newState));
+      
+      // Get the current cart order ID from localStorage
+      const cartOrderId = localStorage.getItem('cartOrderId');
+      
+      // If we have a cart order ID, update the Firebase order
+      if (cartOrderId) {
+        // Update the order in Firebase
+        const orderRef = doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', cartOrderId);
+        
+        // Create a new items array without the removed item
+        const updatedItems = newState.items.map(item => ({
+          courseId: item.id,
+          title: item.title,
+          price: item.price
+        }));
+        
+        // Update the order document
+        updateDoc(orderRef, {
+          items: updatedItems,
+          total: newState.total,
+          updatedAt: new Date()
+        }).then(() => {
+          console.log('Successfully updated cart order in Firebase');
+        }).catch(error => {
+          console.error('Error updating cart in Firebase:', error);
+        });
+      }
+      
+      return newState;
     }
     case 'CLEAR_CART':
       return { items: [], total: 0 };
@@ -319,9 +354,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'ADD_ITEM', payload: item });
   };
 
-  const removeItem = (id: string) => {
-    dispatch({ type: 'REMOVE_ITEM', payload: id });
-  };
+  const removeItem = useCallback((id: string) => {
+    dispatch({ type: 'REMOVE_ITEM', payload: id, user });
+  }, [user]);
 
   const clearCart = () => {
     dispatch({ type: 'CLEAR_CART' });
