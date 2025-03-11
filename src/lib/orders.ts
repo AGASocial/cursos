@@ -217,6 +217,7 @@ export const approveOrder = async (
     try {
       await Promise.all(updatePromises);
 
+
       // Update order status to completed
       await updateDoc(orderRef, {
         status: "completed",
@@ -329,3 +330,4 @@ export const convertCartOrderToPending = async (
     };
   }
 };
+
