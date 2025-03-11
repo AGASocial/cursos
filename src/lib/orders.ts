@@ -270,7 +270,7 @@ export const rejectOrder = async (
 
 export const updateOrderStatus = async (
   orderId: string,
-  status: "pending" | "completed"
+  status: 'cart' | 'pending' | 'completed' | 'rejected' | 'cancelled'
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const academyId = ACADEMY;
@@ -357,3 +357,4 @@ export const convertCartOrderToPending = async (
     };
   }
 };
+
