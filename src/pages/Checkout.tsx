@@ -16,6 +16,7 @@ import { useDispatch } from "react-redux";
 import { setAmount, setCourseName } from "../store/features/paymentSlice";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { clearCart } from "../store/features/cartSlice";
 
 const ACADEMIES_COLLECTION =
   import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || "agaacademies";
@@ -77,6 +78,11 @@ export const Checkout = () => {
       setError("payment.error.checkout");
       setLoading(false);
     }
+
+    setTimeout(() => {
+      clearCart();
+      navigate("/courses");
+    }, 3000);
   };
 
   const handleStripeCheckout = async () => {

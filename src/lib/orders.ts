@@ -29,7 +29,7 @@ export interface Order {
     price: number;
   }[];
   total: number;
-  status: "pending" | "completed" | "rejected";
+  status: "cart" | "pending" | "completed" | "rejected" | "cancelled";
   createdAt: Date;
 }
 

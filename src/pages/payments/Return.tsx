@@ -131,6 +131,9 @@ export const Return = () => {
           
           console.log('Successfully updated order status to cart');
           
+          // Clear purchasedCourseIds from localStorage to prevent accidental enrollment
+          localStorage.removeItem('purchasedCourseIds');
+          
           // Fetch the order to get the items for the cart
           const orderDoc = await getDoc(orderRef);
           
@@ -858,10 +861,11 @@ export const Return = () => {
 
   // Call this function immediately when the component mounts
   useEffect(() => {
-    if (enrolledCourses.length === 0 && !loading) {
+    // Only attempt to load and enroll courses if payment was successful
+    if (status === 'complete' && enrolledCourses.length === 0 && !loading) {
       loadCoursesFromLocalStorage();
     }
-  }, [enrolledCourses.length, loading]);
+  }, [enrolledCourses.length, loading, status]);
 
   if (loading) {
     return (
