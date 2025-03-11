@@ -29,7 +29,7 @@ export interface Order {
     price: number;
   }[];
   total: number;
-  status: 'cart' | 'pending' | 'completed' | 'rejected';
+  status: "pending" | "completed" | "rejected";
   createdAt: Date;
 }
 
@@ -63,87 +63,6 @@ export const createOrder = async (
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to create order",
-    };
-  }
-};
-
-/**
- * Creates or updates a cart order in Firebase
- * @param userId The user ID
- * @param userEmail The user email
- * @param items The cart items
- * @param total The cart total
- * @returns Object with success status, order ID, and error message if any
- */
-export const createOrUpdateCartOrder = async (
-  userId: string,
-  userEmail: string,
-  items: Course[],
-  total: number
-): Promise<{ success: boolean; orderId?: string; error?: string }> => {
-  try {
-    const academyId = ACADEMY;
-
-    // Check if user already has a cart order
-    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, "orders");
-    const q = query(
-      ordersRef,
-      where("userId", "==", userId),
-      where("status", "==", "cart")
-    );
-    const snapshot = await getDocs(q);
-
-    if (!snapshot.empty) {
-      // Update existing cart order
-      const existingOrder = snapshot.docs[0];
-      const orderRef = doc(
-        db,
-        ACADEMIES_COLLECTION,
-        academyId,
-        "orders",
-        existingOrder.id
-      );
-
-      await updateDoc(orderRef, {
-        items: items.map((item) => ({
-          courseId: item.id,
-          title: item.title,
-          price: item.price,
-        })),
-        total,
-        updatedAt: serverTimestamp(),
-      });
-
-      return { success: true, orderId: existingOrder.id };
-    } else {
-      // Create new cart order
-      const orderData = {
-        userId,
-        userEmail,
-        items: items.map((item) => ({
-          courseId: item.id,
-          title: item.title,
-          price: item.price,
-        })),
-        total,
-        status: "cart",
-        createdAt: serverTimestamp(),
-      };
-
-      const orderRef = await addDoc(
-        collection(db, ACADEMIES_COLLECTION, academyId, "orders"),
-        orderData
-      );
-      return { success: true, orderId: orderRef.id };
-    }
-  } catch (error) {
-    console.error("Error creating/updating cart order:", error);
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to create/update cart order",
     };
   }
 };
@@ -240,9 +159,37 @@ export const approveOrder = async (
   }
 };
 
+export const rejectOrder = async (
+  orderId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const academyId = ACADEMY;
+    const orderRef = doc(
+      db,
+      ACADEMIES_COLLECTION,
+      academyId,
+      "orders",
+      orderId
+    );
+
+    await updateDoc(orderRef, {
+      status: "rejected",
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error rejecting order:", error);
+    return {
+      success: false,
+      error: "Failed to reject order. Please try again.",
+    };
+  }
+};
+
 export const updateOrderStatus = async (
   orderId: string,
-  status: 'cart' | 'pending' | 'completed' | 'rejected'
+  status: "pending" | "completed"
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const academyId = ACADEMY;
@@ -273,59 +220,6 @@ export const updateOrderStatus = async (
         error instanceof Error
           ? error.message
           : "Failed to update order status",
-    };
-  }
-};
-
-/**
- * Converts a cart order to a pending order
- * @param userId The user ID
- * @returns Object with success status, order ID, and error message if any
- */
-export const convertCartOrderToPending = async (
-  userId: string
-): Promise<{ success: boolean; orderId?: string; error?: string }> => {
-  try {
-    const academyId = ACADEMY;
-
-    // Find the user's cart order
-    const ordersRef = collection(db, ACADEMIES_COLLECTION, academyId, "orders");
-    const q = query(
-      ordersRef,
-      where("userId", "==", userId),
-      where("status", "==", "cart")
-    );
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      return { success: false, error: "No cart order found" };
-    }
-
-    // Get the cart order
-    const cartOrder = snapshot.docs[0];
-    const orderRef = doc(
-      db,
-      ACADEMIES_COLLECTION,
-      academyId,
-      "orders",
-      cartOrder.id
-    );
-
-    // Update the order status to pending
-    await updateDoc(orderRef, {
-      status: "pending",
-      updatedAt: serverTimestamp(),
-    });
-
-    return { success: true, orderId: cartOrder.id };
-  } catch (error) {
-    console.error("Error converting cart order to pending:", error);
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to convert cart order to pending",
     };
   }
 };
