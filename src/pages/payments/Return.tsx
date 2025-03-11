@@ -115,14 +115,27 @@ export const Return = () => {
         return;
       }
       
-      // 2. Fetch the pending order to recreate the cart
-      const fetchPendingOrder = async () => {
+      // 2. Fetch the pending order and update its status to "cart"
+      const updateOrderToCart = async () => {
         try {
-          console.log('Fetching pending order:', pendingOrderId);
-          const orderDoc = await getDoc(doc(db, ACADEMIES_COLLECTION, ACADEMY, 'orders', pendingOrderId));
+          console.log('Updating order to cart status:', pendingOrderId);
+          const academyId = ACADEMY;
+          
+          // Update the order status to "cart"
+          const orderRef = doc(db, ACADEMIES_COLLECTION, academyId, 'orders', pendingOrderId);
+          
+          await updateDoc(orderRef, {
+            status: "cart",
+            updatedAt: serverTimestamp()
+          });
+          
+          console.log('Successfully updated order status to cart');
+          
+          // Fetch the order to get the items for the cart
+          const orderDoc = await getDoc(orderRef);
           
           if (!orderDoc.exists()) {
-            console.error('Order not found:', pendingOrderId);
+            console.error('Order not found after update:', pendingOrderId);
             setError('order.pending_not_found');
             setLoading(false);
             return;
@@ -130,10 +143,6 @@ export const Return = () => {
           
           const orderData = orderDoc.data();
           console.log('Order data retrieved successfully:', orderData);
-          
-          // Skip updating the order status since we don't have permission
-          // Only admins can update orders according to the security rules
-          // Instead, just focus on restoring the cart
           
           // 4. Recreate the cart with the courses from the pending order
           // Check for items array as seen in the Firestore document
@@ -216,9 +225,6 @@ export const Return = () => {
             // 5. Inform the user and redirect to cart
             setError('payment.canceled_cart_restored');
             setLoading(false);
-            
-            
-            
           } else {
             // Try to use purchasedCourseIds as a fallback
             const purchasedCourseIds = localStorage.getItem('purchasedCourseIds');
@@ -306,7 +312,7 @@ export const Return = () => {
             setLoading(false);
           }
         } catch (err) {
-          console.error('Error fetching pending order:', err);
+          console.error('Error updating order to cart status:', err);
           // Provide more specific error message
           if (err instanceof Error) {
             if (err.message.includes('permission')) {
@@ -417,7 +423,7 @@ export const Return = () => {
         }
       };
       
-      fetchPendingOrder();
+      updateOrderToCart();
       return;
     }
     
