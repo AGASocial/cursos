@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ShoppingCart,
@@ -11,11 +11,7 @@ import { FormattedMessage } from "react-intl";
 import { Button } from "../components/ui/Button";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  createOrder,
-  convertCartOrderToPending,
-  approveOrder,
-} from "../lib/orders";
+import { createOrder, convertCartOrderToPending } from "../lib/orders";
 import { useDispatch } from "react-redux";
 import { setAmount, setCourseName } from "../store/features/paymentSlice";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
@@ -27,10 +23,10 @@ const ACADEMY = import.meta.env.VITE_AGA_ACADEMY;
 
 export const Checkout = () => {
   const navigate = useNavigate();
-  const { state: cart, clearCart } = useCart();
+  const { state: cart } = useCart();
   const { user } = useAuth();
   const dispatch = useDispatch();
-  const [purchaseComplete, setPurchaseComplete] = useState(false);
+  const [purchaseComplete] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -55,14 +51,12 @@ export const Checkout = () => {
     try {
       // First, try to convert an existing cart order to pending
       const cartOrderResult = await convertCartOrderToPending(user.uid);
-      let orderId;
 
       if (cartOrderResult.success) {
         console.log(
           "Converted cart order to pending:",
           cartOrderResult.orderId
         );
-        orderId = cartOrderResult.orderId;
       } else {
         // If no cart order exists, create a new pending order
         const orderResult = await createOrder(
@@ -77,25 +71,7 @@ export const Checkout = () => {
           setLoading(false);
           return;
         }
-
-        orderId = orderResult.orderId;
       }
-
-      // Now approve the order to enroll the user in the courses
-      const approvalResult = await approveOrder(orderId!);
-
-      if (!approvalResult.success) {
-        setError(approvalResult.error || "payment.error.approval");
-        setLoading(false);
-        return;
-      }
-
-      setPurchaseComplete(true);
-      // Clear the cart after 3 seconds and redirect to courses
-      setTimeout(() => {
-        clearCart();
-        navigate("/courses");
-      }, 3000);
     } catch (error) {
       console.error("Error completing purchase:", error);
       setError("payment.error.checkout");
