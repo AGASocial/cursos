@@ -1,8 +1,7 @@
 import React from 'react';
 import { FormattedMessage } from 'react-intl';
-import { Check, Clock, RefreshCw } from 'lucide-react';
+import { Check, Clock } from 'lucide-react';
 import type { Order } from '../../lib/orders';
-import { Button } from '../ui/Button';
 
 interface OrdersListProps {
   orders: Order[];

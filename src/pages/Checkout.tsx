@@ -1,106 +1,288 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Mail, AlertCircle, Check, CreditCard } from 'lucide-react';
-import { FormattedMessage } from 'react-intl';
-import { Button } from '../components/ui/Button';
-import { useCart } from '../contexts/CartContext';
-import { useAuth } from '../contexts/AuthContext';
-import { createOrder } from '../lib/orders';
-import { loadStripe } from '@stripe/stripe-js';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ShoppingCart,
+  Mail,
+  AlertCircle,
+  Check,
+  CreditCard,
+} from "lucide-react";
+import { FormattedMessage } from "react-intl";
+import { Button } from "../components/ui/Button";
+import { useCart } from "../contexts/CartContext";
+import { useAuth } from "../contexts/AuthContext";
+import { createOrder, convertCartOrderToPending } from "../lib/orders";
+import { useDispatch } from "react-redux";
+import { setAmount, setCourseName } from "../store/features/paymentSlice";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import { clearCart } from "../store/features/cartSlice";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+const ACADEMIES_COLLECTION =
+  import.meta.env.VITE_FIREBASE_FIRESTORE_ROOT || "agaacademies";
+const ACADEMY = import.meta.env.VITE_AGA_ACADEMY;
 
 export const Checkout = () => {
   const navigate = useNavigate();
-  const { state: cart, clearCart } = useCart();
+  const { state: cart } = useCart();
   const { user } = useAuth();
-  const [purchaseComplete, setPurchaseComplete] = useState(false);
+  const dispatch = useDispatch();
+  const [purchaseComplete] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
-  // Redirect if cart is empty
-  if (cart.items.length === 0) {
-    navigate('/courses');
-    return null;
-  }
+  useEffect(() => {
+    // Handle redirects in useEffect
+    if (cart.items.length === 0) {
+      navigate("/courses");
+    } else if (!user) {
+      navigate("/login");
+    }
+  }, [cart.items.length, user, navigate]);
 
-  // Redirect if not logged in
-  if (!user) {
-    navigate('/login');
+  // If cart is empty or user is not logged in, render nothing while redirect happens
+  if (cart.items.length === 0 || !user) {
     return null;
   }
 
   const handleCompletePurchase = async () => {
     setLoading(true);
-    setError('');
+    setError("");
 
-    const { success, error: orderError } = await createOrder(
-      user.uid,
-      user.email!,
-      cart.items,
-      cart.total
-    );
+    try {
+      // First, try to convert an existing cart order to pending
+      const cartOrderResult = await convertCartOrderToPending(user.uid);
 
-    if (!success) {
-      setError(orderError || 'Failed to create order');
+      if (cartOrderResult.success) {
+        console.log(
+          "Converted cart order to pending:",
+          cartOrderResult.orderId
+        );
+      } else {
+        // If no cart order exists, create a new pending order
+        const orderResult = await createOrder(
+          user.uid,
+          user.email!,
+          cart.items,
+          cart.total
+        );
+
+        if (!orderResult.success) {
+          setError(orderResult.error || "payment.error.checkout");
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("Error completing purchase:", error);
+      setError("payment.error.checkout");
       setLoading(false);
-      return;
     }
 
-    setPurchaseComplete(true);
-    // Clear the cart after 3 seconds and redirect to courses
     setTimeout(() => {
       clearCart();
-      navigate('/courses');
+      navigate("/courses");
     }, 3000);
   };
 
   const handleStripeCheckout = async () => {
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const stripe = await stripePromise;
-      if (!stripe) throw new Error('Stripe failed to load');
+      // Calculate total amount in cents
+      const totalAmount = cart.items.reduce(
+        (total, item) => total + item.price * 100,
+        0
+      );
 
-      const response = await fetch('/.netlify/functions/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: cart.items.map(item => ({
-            price_data: {
-              currency: 'usd',
-              product_data: {
-                name: item.title,
-                description: `Curso: ${item.title}`,
-              },
-              unit_amount: Math.round(item.price * 100),
-            },
-            quantity: 1,
-          })),
-          userId: user.uid,
-          userEmail: user.email,
-        }),
-      });
+      // Create an array of course IDs to be purchased
+      const courseIds = cart.items.map((item) => item.id);
 
-      const session = await response.json();
-      
-      const result = await stripe.redirectToCheckout({
-        sessionId: session.id,
-      });
+      // First, try to convert an existing cart order to pending
+      const cartOrderResult = await convertCartOrderToPending(user.uid);
+      let orderId;
 
-      if (result.error) {
-        setError(result.error.message || 'Error al procesar el pago');
+      if (cartOrderResult.success && cartOrderResult.orderId) {
+        console.log(
+          "Converted cart order to pending:",
+          cartOrderResult.orderId
+        );
+        orderId = cartOrderResult.orderId;
+      } else {
+        // Check if there's an existing pending order in localStorage
+        const existingOrderId = localStorage.getItem("pendingOrderId");
+
+        if (existingOrderId) {
+          try {
+            // Try to get the existing order
+            const orderDoc = await getDoc(
+              doc(db, ACADEMIES_COLLECTION, ACADEMY, "orders", existingOrderId)
+            );
+
+            if (orderDoc.exists()) {
+              const orderData = orderDoc.data();
+
+              // Only reuse the order if it's still pending and belongs to this user
+              if (
+                orderData.status === "pending" &&
+                orderData.userId === user.uid
+              ) {
+                console.log("Reusing existing pending order:", existingOrderId);
+
+                // Update the order with new items and timestamp
+                await updateDoc(
+                  doc(
+                    db,
+                    ACADEMIES_COLLECTION,
+                    ACADEMY,
+                    "orders",
+                    existingOrderId
+                  ),
+                  {
+                    items: cart.items.map((item) => ({
+                      courseId: item.id,
+                      title: item.title,
+                      price: item.price,
+                    })),
+                    total: cart.total,
+                    updatedAt: serverTimestamp(),
+                  }
+                );
+
+                orderId = existingOrderId;
+              } else {
+                // Order exists but is not pending or belongs to another user
+                console.log(
+                  "Existing order is not pending or belongs to another user, creating new order"
+                );
+                const orderResult = await createOrder(
+                  user.uid,
+                  user.email!,
+                  cart.items,
+                  cart.total
+                );
+
+                if (!orderResult.success) {
+                  throw new Error(
+                    orderResult.error || "payment.error.checkout"
+                  );
+                }
+
+                orderId = orderResult.orderId;
+              }
+            } else {
+              // Order doesn't exist, create a new one
+              console.log("Order not found, creating new order");
+              const orderResult = await createOrder(
+                user.uid,
+                user.email!,
+                cart.items,
+                cart.total
+              );
+
+              if (!orderResult.success) {
+                throw new Error(orderResult.error || "payment.error.checkout");
+              }
+
+              orderId = orderResult.orderId;
+            }
+          } catch (orderError) {
+            console.error("Error checking existing order:", orderError);
+            // If there's an error checking the existing order, create a new one
+            const orderResult = await createOrder(
+              user.uid,
+              user.email!,
+              cart.items,
+              cart.total
+            );
+
+            if (!orderResult.success) {
+              throw new Error(orderResult.error || "payment.error.checkout");
+            }
+
+            orderId = orderResult.orderId;
+          }
+        } else {
+          // No existing order ID, create a new order
+          console.log("No existing order ID, creating new order");
+          const orderResult = await createOrder(
+            user.uid,
+            user.email!,
+            cart.items,
+            cart.total
+          );
+
+          if (!orderResult.success) {
+            throw new Error(orderResult.error || "payment.error.checkout");
+          }
+
+          orderId = orderResult.orderId;
+        }
       }
-    } catch (err) {
-      setError('Error al iniciar el proceso de pago');
-      console.error('Stripe checkout error:', err);
+
+      console.log("Using order ID for payment:", orderId);
+
+      // Store the order ID in localStorage for fallback
+      if (orderId) {
+        localStorage.setItem("pendingOrderId", orderId);
+
+        // Store the course IDs in localStorage for retrieval after payment
+        localStorage.setItem("purchasedCourseIds", JSON.stringify(courseIds));
+
+        // Store the amount in Redux
+        dispatch(setAmount(totalAmount));
+
+        // Store the course name in Redux - create a complete list of course titles
+        if (cart.items.length > 0) {
+          let courseName;
+
+          if (cart.items.length === 1) {
+            // If only one course, use its title
+            courseName = cart.items[0].title;
+          } else {
+            // If multiple courses, list all titles
+            courseName = cart.items.map((item) => item.title).join(", ");
+          }
+
+          dispatch(setCourseName(courseName));
+        }
+
+        // Navigate to payment process with order ID
+        navigate(`/payment/process?orderId=${orderId}`);
+      } else {
+        throw new Error("Failed to create or retrieve order ID");
+      }
+    } catch (error) {
+      console.error("Error initiating checkout:", error);
+      setError("payment.error.checkout");
     } finally {
       setLoading(false);
     }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <FormattedMessage id="payment.loading" />
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="text-red-500 mb-4">
+          <FormattedMessage id={error} defaultMessage={error} />
+        </div>
+        <Button onClick={() => setError("")}>
+          <FormattedMessage id="payment.tryAgain" />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-16">
@@ -141,10 +323,16 @@ export const Checkout = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-semibold text-gray-900 truncate">{item.title}</h3>
-                        <p className="mt-2 text-sm text-gray-500">{item.instructor}</p>
+                        <h3 className="text-xl font-semibold text-gray-900 truncate">
+                          {item.title}
+                        </h3>
+                        <p className="mt-2 text-sm text-gray-500">
+                          {item.instructor}
+                        </p>
                       </div>
-                      <p className="text-xl font-semibold text-gray-900">${item.price}</p>
+                      <p className="text-xl font-semibold text-gray-900">
+                        ${item.price}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -158,13 +346,17 @@ export const Checkout = () => {
                       <dt className="text-base text-gray-600">
                         <FormattedMessage id="cart.total" />
                       </dt>
-                      <dd className="text-base font-medium text-gray-900">${cart.total.toFixed(2)}</dd>
+                      <dd className="text-base font-medium text-gray-900">
+                        ${cart.total.toFixed(2)}
+                      </dd>
                     </div>
                     <div className="flex items-center justify-between border-t border-gray-200 pt-6">
                       <dt className="text-lg font-semibold text-gray-900">
                         <FormattedMessage id="cart.total" />
                       </dt>
-                      <dd className="text-lg font-semibold text-blue-600">${cart.total.toFixed(2)}</dd>
+                      <dd className="text-lg font-semibold text-blue-600">
+                        ${cart.total.toFixed(2)}
+                      </dd>
                     </div>
                   </dl>
                 </div>
@@ -202,8 +394,12 @@ export const Checkout = () => {
                     <div className="rounded-xl border border-gray-200 p-6 hover:border-blue-200 hover:shadow-md transition-all duration-200">
                       <div className="flex items-center space-x-4">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                          <svg className="h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .757-.629h7.815c2.604 0 4.429.715 5.445 2.135.463.659.77 1.466.883 2.385.117.961.006 2.203-.33 3.604l-.002.01v.01c-.401 2.053-1.23 3.83-2.45 5.238-1.203 1.389-2.736 2.373-4.558 2.931-1.772.547-3.78.547-5.989.547h-.767c-.612 0-1.137.437-1.24 1.037l-1.265 5.766a.642.642 0 0 1-.63.512H2.47z"/>
+                          <svg
+                            className="h-5 w-5 text-blue-600"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                          >
+                            <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .757-.629h7.815c2.604 0 4.429.715 5.445 2.135.463.659.77 1.466.883 2.385.117.961.006 2.203-.33 3.604l-.002.01v.01c-.401 2.053-1.23 3.83-2.45 5.238-1.203 1.389-2.736 2.373-4.558 2.931-1.772.547-3.78.547-5.989.547h-.767c-.612 0-1.137.437-1.24 1.037l-1.265 5.766a.642.642 0 0 1-.63.512H2.47z" />
                           </svg>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900">
@@ -249,11 +445,19 @@ export const Checkout = () => {
                             <FormattedMessage id="checkout.important" />
                           </h3>
                           <div className="mt-3 text-base text-blue-800">
-                            <p><FormattedMessage id="checkout.payment.instructions" /></p>
+                            <p>
+                              <FormattedMessage id="checkout.payment.instructions" />
+                            </p>
                             <ul className="mt-4 list-disc pl-5 space-y-2">
-                              <li><FormattedMessage id="checkout.payment.instructions.email" /></li>
-                              <li><FormattedMessage id="checkout.payment.instructions.transaction" /></li>
-                              <li><FormattedMessage id="checkout.payment.instructions.courses" /></li>
+                              <li>
+                                <FormattedMessage id="checkout.payment.instructions.email" />
+                              </li>
+                              <li>
+                                <FormattedMessage id="checkout.payment.instructions.transaction" />
+                              </li>
+                              <li>
+                                <FormattedMessage id="checkout.payment.instructions.courses" />
+                              </li>
                             </ul>
                           </div>
                         </div>

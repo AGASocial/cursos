@@ -1,15 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { FormattedMessage } from 'react-intl';
-import { Clock, Users, BookOpen, BarChart, ArrowLeft, ShoppingCart } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { markdownComponents, processYouTubeEmbeds } from '../lib/markdown';
-import { Button } from '../components/ui/Button';
-import { getCourseBySlug, type Course } from '../lib/courses';
-import { useCart } from '../contexts/CartContext';
-import { useAuth } from '../contexts/AuthContext';
-import { getUserData } from '../lib/users';
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { FormattedMessage } from "react-intl";
+import {
+  Clock,
+  Users,
+  BookOpen,
+  BarChart,
+  ArrowLeft,
+  ShoppingCart,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { markdownComponents, processYouTubeEmbeds } from "../lib/markdown";
+import { Button } from "../components/ui/Button";
+import { getCourseBySlug, type Course } from "../lib/courses";
+import { useCart } from "../contexts/CartContext";
+import { useAuth } from "../contexts/AuthContext";
+import { getUserData } from "../lib/users";
 
 export const CourseDetails = () => {
   const { courseSlug } = useParams<{ courseSlug: string }>();
@@ -22,12 +29,12 @@ export const CourseDetails = () => {
   useEffect(() => {
     const fetchCourse = async () => {
       if (!courseSlug) return;
-      
+
       try {
         const courseData = await getCourseBySlug(courseSlug);
         if (!courseData) {
-          console.error('Course not found:', courseSlug);
-          navigate('/courses');
+          console.error("Course not found:", courseSlug);
+          navigate("/courses");
           return;
         }
 
@@ -42,8 +49,8 @@ export const CourseDetails = () => {
 
         setCourse(courseData);
       } catch (error) {
-        console.error('Error fetching course:', error);
-        navigate('/courses');
+        console.error("Error fetching course:", error);
+        navigate("/courses");
       } finally {
         setLoading(false);
       }
@@ -52,14 +59,14 @@ export const CourseDetails = () => {
     fetchCourse();
   }, [courseSlug, user, navigate]);
 
-  const isInCart = course && cart.items.some(item => item.id === course.id);
+  const isInCart = course && cart.items.some((item) => item.id === course.id);
 
   const handleEnroll = () => {
     if (!user) {
-      navigate('/login');
+      navigate("/login");
       return;
     }
-    
+
     if (course) {
       addItem(course);
     }
@@ -81,11 +88,13 @@ export const CourseDetails = () => {
       <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900">Course not found</h2>
-          <p className="mt-2 text-gray-600">The course you're looking for doesn't exist.</p>
+          <p className="mt-2 text-gray-600">
+            The course you're looking for doesn't exist.
+          </p>
           <Button
             variant="outline"
             className="mt-4"
-            onClick={() => navigate('/courses')}
+            onClick={() => navigate("/courses")}
           >
             Back to Courses
           </Button>
@@ -100,7 +109,7 @@ export const CourseDetails = () => {
       <div className="relative bg-gradient-to-br from-blue-600 to-blue-800 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <button
-            onClick={() => navigate('/courses')}
+            onClick={() => navigate("/courses")}
             className="mb-8 inline-flex items-center text-sm text-white/90 hover:text-white transition-colors duration-200 hover:translate-x-[-4px] transform"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -111,8 +120,12 @@ export const CourseDetails = () => {
               <h1 className="text-4xl font-bold text-white sm:text-5xl leading-tight">
                 {course.title}
               </h1>
-              <p className="mt-2 text-lg text-white/80">por {course.instructor}</p>
-              <p className="mt-6 text-lg text-white/90 leading-relaxed">{course.description}</p>
+              <p className="mt-2 text-lg text-white/80">
+                por {course.instructor}
+              </p>
+              <p className="mt-6 text-lg text-white/90 leading-relaxed">
+                {course.description}
+              </p>
               <div className="mt-8 flex flex-wrap items-center gap-6 text-white/90">
                 <div className="flex items-center backdrop-blur-sm bg-white/10 rounded-full px-4 py-2">
                   <Clock className="mr-2 h-5 w-5" />
@@ -120,11 +133,18 @@ export const CourseDetails = () => {
                 </div>
                 <div className="flex items-center backdrop-blur-sm bg-white/10 rounded-full px-4 py-2">
                   <Users className="mr-2 h-5 w-5" />
-                  <span>{course.enrolledCount} <FormattedMessage id="course.enrolled" /></span>
+                  <span>
+                    {course.enrolledCount}{" "}
+                    <FormattedMessage id="course.enrolled" />
+                  </span>
                 </div>
                 <div className="flex items-center backdrop-blur-sm bg-white/10 rounded-full px-4 py-2">
                   <BarChart className="mr-2 h-5 w-5" />
-                  <span><FormattedMessage id={`admin.courses.form.level.${course.level}`} /></span>
+                  <span>
+                    <FormattedMessage
+                      id={`admin.courses.form.level.${course.level}`}
+                    />
+                  </span>
                 </div>
               </div>
             </div>
@@ -180,17 +200,23 @@ export const CourseDetails = () => {
             <div className="sticky top-24">
               <div className="rounded-2xl bg-white p-8 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-gray-100">
                 <div className="mb-6">
-                  <span className="text-4xl font-bold text-gray-900">${course.price}</span>
+                  <span className="text-4xl font-bold text-gray-900">
+                    ${course.price}
+                  </span>
                 </div>
                 <Button
                   className={`w-full text-lg py-6 transition-transform duration-200 ${
-                    !isInCart && 'hover:transform hover:scale-[1.02]'
+                    !isInCart && "hover:transform hover:scale-[1.02]"
                   }`}
                   onClick={handleEnroll}
                   disabled={isInCart || !user}
                 >
                   <ShoppingCart className="mr-2 h-5 w-5" />
-                  {isInCart ? <FormattedMessage id="course.addedToCart" /> : <FormattedMessage id="course.enroll" />}
+                  {isInCart ? (
+                    <FormattedMessage id="course.addedToCart" />
+                  ) : (
+                    <FormattedMessage id="course.enroll" />
+                  )}
                 </Button>
                 <div className="mt-8 space-y-5 text-sm text-gray-600">
                   <div className="flex items-center p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
@@ -199,11 +225,18 @@ export const CourseDetails = () => {
                   </div>
                   <div className="flex items-center p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
                     <Users className="mr-3 h-5 w-5 text-blue-600" />
-                    <span>{course.enrolledCount} <FormattedMessage id="course.enrolled" /></span>
+                    <span>
+                      {course.enrolledCount}{" "}
+                      <FormattedMessage id="course.enrolled" />
+                    </span>
                   </div>
                   <div className="flex items-center p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
                     <BarChart className="mr-3 h-5 w-5 text-blue-600" />
-                    <span><FormattedMessage id={`admin.courses.form.level.${course.level}`} /></span>
+                    <span>
+                      <FormattedMessage
+                        id={`admin.courses.form.level.${course.level}`}
+                      />
+                    </span>
                   </div>
                 </div>
               </div>

@@ -125,6 +125,32 @@ export default {
   'courses.empty.suggestion': 'Intenta ajustar tus filtros o término de búsqueda.',
   'courses.loading': 'Cargando cursos increíbles para ti...',
 
+  // Payment Process
+  'payment.redirecting': 'Redirigiendo a la página de pago...',
+  'payment.error.amount': 'No se ha especificado un monto para el pago',
+  'payment.error.courseName': 'No se ha especificado un nombre de curso',
+  'payment.error.processing': 'Error al procesar la información del curso',
+  'payment.error.checkout': 'Error al iniciar el proceso de pago. Por favor, inténtelo de nuevo.',
+  'payment.loading': 'Procesando...',
+  'payment.tryAgain': 'Intentar de nuevo',
+
+  // Payment Return
+  'payment.return.verifying': 'Verificando su pago...',
+  'payment.return.success.title': '¡Pago Exitoso!',
+  'payment.return.success.message': '¡Gracias por su compra! Se enviará un correo electrónico de confirmación a {email}.',
+  'payment.return.enrollment.success': '¡Ha sido inscrito exitosamente en el/los curso(s)!',
+  'payment.return.enrollment.error': 'El pago fue exitoso, pero encontramos un problema al inscribirle en el/los curso(s). Por favor, contacte con soporte con los detalles de su pedido.',
+  'payment.return.courses.title': 'Cursos adquiridos:',
+  'payment.return.start.learning': 'Comenzar a Aprender',
+  'payment.return.support': 'Si tiene alguna pregunta, por favor envíe un correo electrónico a',
+  'payment.return.back': 'Volver a los Cursos',
+  'payment.return.canceled.title': 'Pago Cancelado',
+  'payment.return.canceled.message': 'Su pago fue cancelado. No se realizaron cargos.',
+  'payment.return.back.checkout': 'Volver al Carrito',
+  'payment.return.error.title': 'Error de Pago',
+  'payment.return.error.message': 'Hubo un error al procesar su pago. Por favor, inténtelo de nuevo o contacte con soporte.',
+  'payment.return.error.details': 'Detalles del error:',
+
   // Course Details
   'course.enrolled': 'estudiantes inscritos',
   'course.about': 'Acerca de este curso',

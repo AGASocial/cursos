@@ -1,14 +1,39 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ShoppingCart, X } from 'lucide-react';
 import { FormattedMessage } from 'react-intl';
 import { Button } from '../ui/Button';
 import { useCart } from '../../contexts/CartContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const CartDropdown = () => {
   const [isOpen, setIsOpen] = React.useState(false);
-  const { state, removeItem } = useCart();
+  const { state, removeItem, loadCartFromFirebase } = useCart();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Load cart when component mounts or when user changes
+  useEffect(() => {
+    if (user) {
+      // Check if cart is empty before loading from Firebase
+      if (state.items.length === 0) {
+        console.log('CartDropdown: Cart is empty, attempting to load from Firebase');
+        loadCartFromFirebase(user.uid)
+          .then(success => {
+            if (success) {
+              console.log('CartDropdown: Successfully loaded cart from Firebase');
+            } else {
+              console.log('CartDropdown: No cart found in Firebase or failed to load');
+            }
+          })
+          .catch(error => {
+            console.error('CartDropdown: Error loading cart from Firebase:', error);
+          });
+      } else {
+        console.log('CartDropdown: Cart already has items, skipping Firebase load');
+      }
+    }
+  }, [user, state.items.length, loadCartFromFirebase]);
 
   const handleCheckout = () => {
     setIsOpen(false);
