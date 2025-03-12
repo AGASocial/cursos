@@ -107,7 +107,8 @@ export const getCourseBySlug = async (slug: string): Promise<Course | null> => {
     const coursesRef = collection(db, ACADEMIES_COLLECTION, academyId, 'courses');
     const q = query(
       coursesRef,
-      where('slug', '==', slug.toLowerCase())
+      where('slug', '==', slug.toLowerCase()),
+      where('status', '==', 'published')
     );
     
     const querySnapshot = await getDocs(q);

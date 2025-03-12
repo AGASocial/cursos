@@ -6,11 +6,21 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
+    
+    function isSameUser(userId) {
+    	return request.auth.uid == userId;
+    }
 
     function isAcademyAdmin(academyId) {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/agaacademies/$(academyId)) &&
         get(/databases/$(database)/documents/agaacademies/$(academyId)).data.admins.hasAny([request.auth.uid]);
+    }
+
+    function isAcademyCreator(academyId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/agaacademies/$(academyId)) &&
+        get(/databases/$(database)/documents/agaacademies/$(academyId)).data.creatorId == request.auth.uid;
     }
 
     function isEnrolled(courseId) {
@@ -22,34 +32,42 @@ service cloud.firestore {
     function isValidAcademyName(name) {
       return name.matches('^[a-zA-Z0-9-_]+$');
     }
-
-    function isAcademyCreator(academyId) {
-      return isAuthenticated() &&
-        get(/databases/$(database)/documents/agaacademies/$(academyId)).data.creatorId == request.auth.uid;
-    }
     
-    // Users collection
+    // Users collection (root level)
     match /users/{userId} {
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAuthenticated() && request.auth.uid == userId;
+      // Allow read/write for migration
+      allow read, delete: if true;
+      allow create: if isAuthenticated() && isSameUser(userId);
+      allow update: if isAuthenticated() && isSameUser(userId);
     }
 
     // Academies collection
     match /agaacademies/{academyId} {
       // Allow reading the academy document structure
-      allow get, list: if true;
+      allow get, list: if isValidAcademyName(academyId);
 
       // Only admins can write to academy documents
-      allow create, update, delete: if isAcademyAdmin(academyId);
+      allow create, update, delete: if  isValidAcademyName(academyId) && isAcademyAdmin(academyId);
+
+      // Users subcollection in academy
+      match /users/{userId} {
+        // Allow read/write for academy admins
+        allow read, write: if isValidAcademyName(academyId) && isAcademyAdmin(academyId);
+        // Allow users to read/write their own data
+        allow read, write: if isValidAcademyName(academyId) && 
+        											isAuthenticated() && 
+                              isSameUser(userId);
+      }
 
       // Courses subcollection
       match /courses/{courseId} {
-        allow read: if 
+        allow read: if
           // Anyone can read published courses
-          (resource != null && resource.data.status == 'published') ||
+          resource.data.status == 'published' ||
           // Admins can read all courses (draft and published)
-          isAcademyAdmin(academyId);
+            isAcademyAdmin(academyId) ||
+            // Only enrolled users can read 
+            isEnrolled(courseId);
 
         // Only admins can create/delete courses
         allow create, delete: if isAcademyAdmin(academyId);
@@ -72,10 +90,10 @@ service cloud.firestore {
 
       // Orders collection
       match /orders/{orderId} {
-        allow read: if isAuthenticated() && 
-          (resource.data.userId == request.auth.uid || isAcademyAdmin(academyId));
+        allow read: if true || (isAuthenticated() && 
+          (isSameUser(resource.data.userId) || isAcademyAdmin(academyId)));
         allow create: if isAuthenticated() && 
-          request.resource.data.userId == request.auth.uid;
+           isSameUser(request.resource.data.userId);
         allow update: if isAcademyAdmin(academyId);
       }
     }
